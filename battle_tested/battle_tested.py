@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-26 11:41:19
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-04-27 14:55:50
+# @Last Modified time: 2017-04-27 15:28:39
 
 from functools import wraps
 import logging
@@ -38,10 +38,37 @@ def function_arg_count(fn):
     return fn.__code__.co_argcount
 
 class battle_tested(object):
-    """ automated function fuzzer based on hypothesis to easily test production code """
+    """
+
+battle_tested - automated function fuzzer to easily test production code
+
+Example Usage:
+
+    from battle_tested import battle_tested
+
+    def test_function(a,b,c):
+        return c,b,a
+
+    battle_tested(test_function)
+
+Or:
+
+    from battle_tested import battle_tested
+
+    @battle_tested()
+    def test_function(a,b,c):
+        return c,b,a
+
+"""
+
 
     def __init__(self, seconds=2, max_tests=1000000, verbose=False, **kwargs):
         """ your general constructor to get things in line """
+
+        # this is here if someone decides to use it as battle_tested(function)
+        if callable(seconds):
+            return self.fuzz(seconds, 2, max_tests, verbose)
+
         self.kwargs = kwargs
         self.tested = False
 
@@ -100,12 +127,7 @@ class battle_tested(object):
         # run the test
         fuzz()
         if verbose:
-            print('battle_tested: success')
-
-
-    def battle_fuzz(self,fn):
-        """ where the function is actually battle tested when battle_test is being used as a decorator """
-        self.fuzz(fn, seconds=self.seconds, max_tests=self.max_tests, verbose=self.verbose)
+            print('battle_tested: no falsifying examples found')
 
     def __call__(self, fn):
         """ runs before the decorated function is called """
@@ -115,7 +137,7 @@ class battle_tested(object):
             # only test the first time this function is called
             if not ('skip_test' in self.kwargs and self.kwargs['skip_test']):
                 # skip the test if it is explicitly turned off
-                self.battle_fuzz(fn)
+                self.fuzz(fn, seconds=self.seconds, max_tests=self.max_tests, verbose=self.verbose)
             self.tested = True
 
         def wrapper(*args, **kwargs):
@@ -162,7 +184,8 @@ if __name__ == '__main__':
     def sample3(input_arg):
         return True
 
-    battle_tested.fuzz(sample3, verbose=True)
+    battle_tested(sample3, verbose=True)
 
+    battle_tested(sample3)
 
     print('finished running battle_tested.py')
