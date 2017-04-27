@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-26 11:41:19
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-04-27 13:57:38
+# @Last Modified time: 2017-04-27 14:55:50
 
 from functools import wraps
 import logging
@@ -32,15 +32,10 @@ garbage+=(
 garbage=st.one_of(*garbage)
 
 
-def function_args(fn):
+def function_arg_count(fn):
     """ generates a list of the given function's arguments """
-    assert callable(fn), 'function_args needed a callable function, not {0}'.format(repr(fn))
-    try: # python2 implementation
-        from inspect import getargspec
-        return getargspec(fn).args
-    except: # python3 implementation
-        from inspect import signature
-        return signature(fn).parameters
+    assert callable(fn), 'function_arg_count needed a callable function, not {0}'.format(repr(fn))
+    return fn.__code__.co_argcount
 
 class battle_tested(object):
     """ automated function fuzzer based on hypothesis to easily test production code """
@@ -89,7 +84,8 @@ class battle_tested(object):
         battle_tested.__verify_verbose__(verbose)
         battle_tested.__verify_max_tests__(max_tests)
 
-        args_needed=len(function_args(fn))
+        args_needed=function_arg_count(fn)
+
         # generate a strategy that creates a list of garbage variables for each argument
         strategy = st.lists(elements=garbage, max_size=args_needed, min_size=args_needed)
 
