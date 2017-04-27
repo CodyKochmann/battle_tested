@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 # @Author: Cody Kochmann
 # @Date:   2017-04-26 11:41:19
-# @Last Modified by:   Cody L. Kochmann
-# @Last Modified time: 2017-04-26 18:25:01
+# @Last Modified by:   cody
+# @Last Modified time: 2017-04-27 11:18:58
+
 from functools import wraps
 import logging
 import better_exceptions
@@ -53,20 +54,25 @@ class battle_tested(object):
         """ your general constructor to get things in line """
         self.kwargs = kwargs
         self.tested = False
+        self.verbose = verbose
         self.verbosity = (Verbosity.verbose if verbose else Verbosity.normal)
         assert type(timeout) == int, 'battle_tested needs timeout to be an int, not {}'.format(repr(timeout))
         self.timeout = timeout
         assert type(max_examples) == int, 'battle_tested needs max_examples to be an int, not {}'.format(repr(max_examples))
         self.max_examples = max_examples
 
-    def battle_test(self,fn):
-        """ where the function is actually battle tested """
-        # get number of args this function needs
+    @staticmethod
+    def test(fn, seconds=2, max_tests=1000000, verbose=False):
+        """ staticly tests input funcions """
         args_needed=len(function_args(fn))
         # generate a strategy that creates a list of garbage variables for each argument
         strategy = st.lists(elements=garbage, max_size=args_needed, min_size=args_needed)
 
-        @settings(timeout=self.timeout,max_examples=self.max_examples,verbosity=self.verbosity)
+        if verbose:
+            print('testing: {0}'.format(fn.__name__))
+
+
+        @settings(timeout=seconds, max_examples=max_tests, verbosity=(Verbosity.verbose if verbose else Verbosity.normal))
         @given(strategy)
         def test(arg_list):
             # unpack the arguments
@@ -74,19 +80,21 @@ class battle_tested(object):
         # run the test
         test()
 
+    def battle_test(self,fn):
+        """ where the function is actually battle tested """
+
+        self.test(fn, seconds=self.timeout, max_tests=self.max_examples, verbose=self.verbose)
+
     def __call__(self, fn):
         """ runs before the decorated function is called """
         assert callable(fn), "battle_tested needs a callable target to wrap"
 
         if not self.tested:
-            print 'testing:', fn.__name__
             # only test the first time this function is called
             if not ('skip_test' in self.kwargs and self.kwargs['skip_test']):
                 # skip the test if it is explicitly turned off
                 self.battle_test(fn)
             self.tested = True
-        else:
-            print 'already tested:',fn.__name__
 
         def wrapper(*args, **kwargs):
             try:
@@ -124,4 +132,10 @@ if __name__ == '__main__':
     print sample2(4)
     print sample(4)
     print sample2(4)
+
+    def sample4(input_arg):
+        return True
+
+    battle_tested.test(sample4, verbose=True)
+
     print('finished running battle_tested.py')
