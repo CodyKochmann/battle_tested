@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-26 11:41:19
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-04-27 15:28:39
+# @Last Modified time: 2017-04-27 16:10:57
 
 from functools import wraps
 import logging
@@ -67,7 +67,7 @@ Or:
 
         # this is here if someone decides to use it as battle_tested(function)
         if callable(seconds):
-            return self.fuzz(seconds, 2, max_tests, verbose)
+            raise Exception('\n\n\tyou gave battle_tested() a function as the argument, did you mean battle_tested.fuzz()?')
 
         self.kwargs = kwargs
         self.tested = False
@@ -116,8 +116,7 @@ Or:
         # generate a strategy that creates a list of garbage variables for each argument
         strategy = st.lists(elements=garbage, max_size=args_needed, min_size=args_needed)
 
-        if verbose:
-            print('testing: {0}'.format(fn.__name__))
+        print('testing: {0}'.format(fn.__name__))
 
         @settings(timeout=seconds, max_examples=max_tests, verbosity=(Verbosity.verbose if verbose else Verbosity.normal))
         @given(strategy)
@@ -126,8 +125,7 @@ Or:
             fn(*arg_list)
         # run the test
         fuzz()
-        if verbose:
-            print('battle_tested: no falsifying examples found')
+        print('battle_tested: no falsifying examples found')
 
     def __call__(self, fn):
         """ runs before the decorated function is called """
