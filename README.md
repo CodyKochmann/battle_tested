@@ -1,4 +1,4 @@
-# battle_tested
+# battle_tested.py
 An automated library that puts functions through hell so in production your code will have already seen worse.
 
 ## How to install it?
