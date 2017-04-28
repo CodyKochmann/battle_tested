@@ -58,7 +58,4 @@ def sample3(input_arg):
     return True
 
 battle_tested.fuzz(sample3, verbose=True)
-
-
-print('finished running battle_tested.py')
 ```
