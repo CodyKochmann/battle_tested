@@ -2,12 +2,15 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-26 11:41:19
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-04-27 16:10:57
+# @Last Modified time: 2017-04-28 13:55:07
 
+from __future__ import print_function
 from functools import wraps
 import logging
 import better_exceptions
 from hypothesis import given, strategies as st, settings, Verbosity
+from gc import collect as gc
+
 
 garbage = (
     st.binary(),
@@ -30,6 +33,89 @@ garbage+=(
     st.iterables(elements=st.one_of(*garbage))
 )
 garbage=st.one_of(*garbage)
+
+
+from time import time
+
+class generators(object):
+    def started(generator_function):
+        """ starts a generator when created """
+        def wrapper(*args, **kwargs):
+            g = generator_function(*args, **kwargs)
+            next(g)
+            return g
+        return wrapper
+
+    @staticmethod
+    @started
+    def sum():
+        "generator that holds a sum"
+        total = 0
+        while 1:
+            total += yield total
+
+    @staticmethod
+    @started
+    def counter():
+        "generator that holds a sum"
+        c = 0
+        while 1:
+            yield c
+            c += 1
+
+    @staticmethod
+    @started
+    def avg():
+        """ generator that holds a rolling average """
+        count = 0.0
+        total = generators.sum()
+        i=0
+        while 1:
+            i = yield (total.send(i)*1.0/count if count else 0)
+            count += 1
+
+    @staticmethod
+    @started
+    def timer():
+        """ generator that tracks time """
+        start_time = time()
+        previous = start_time
+        while 1:
+            yield time()-start_time
+
+
+from threading import Timer
+
+class IntervalTimer(object):
+    """ run functions on intervals in the background
+        by: Cody Kochmann
+    """
+    def __init__(self, seconds, function):
+        assert type(seconds) in (int,float)
+        assert callable(function)
+        self.seconds=seconds
+        self.function=function
+        self.stopped=False
+        self.running=False
+
+    def start(self):
+        if not self.stopped:
+            if not self.running:
+                self.function()
+                self.running=True
+            self.thread=Timer(self.seconds,self.function)
+            self.thread.start()
+            self.restart_thread=Timer(self.seconds, self.start)
+            self.restart_thread.start()
+
+    def stop(self):
+        try:
+            self.stopped = True
+            self.running = False
+            self.thread.cancel()
+            self.restart_thread.cancel()
+        except AttributeError:
+            pass
 
 
 def function_arg_count(fn):
@@ -118,13 +204,30 @@ Or:
 
         print('testing: {0}'.format(fn.__name__))
 
+        count = generators.counter()
+        total = generators.sum()
+        average = generators.avg()
+        timer = generators.timer()
+
+        def print_stats(count, timer, average):
+            per_second = count/timer
+            print('tests: {:<12} speed: {}/sec  avg: {}'.format(int(count),int(per_second),int(average.send(per_second))))
+        interval = IntervalTimer(0.25, lambda:print_stats(next(count),next(timer),average))
+        Timer(0.1,lambda:interval.start()).start()
+
+        gc_interval = IntervalTimer(3, gc)
+        gc_interval.start()
+
         @settings(timeout=seconds, max_examples=max_tests, verbosity=(Verbosity.verbose if verbose else Verbosity.normal))
         @given(strategy)
         def fuzz(arg_list):
             # unpack the arguments
+            next(count)
             fn(*arg_list)
         # run the test
         fuzz()
+        interval.stop()
+        gc_interval.stop()
         print('battle_tested: no falsifying examples found')
 
     def __call__(self, fn):
@@ -161,7 +264,7 @@ if __name__ == '__main__':
     #  Examples using the wrapper syntax
     #======================================
 
-    @battle_tested(default_output=[], verbose=True, seconds=1, max_tests=5)
+    @battle_tested(default_output=[], seconds=1, max_tests=5)
     def sample(i):
         return []
 
@@ -182,8 +285,8 @@ if __name__ == '__main__':
     def sample3(input_arg):
         return True
 
-    battle_tested(sample3, verbose=True)
+    battle_tested.fuzz(sample3)
 
-    battle_tested(sample3)
+    battle_tested.fuzz(sample3, seconds=10)
 
     print('finished running battle_tested.py')
