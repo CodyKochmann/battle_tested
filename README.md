@@ -31,7 +31,7 @@ battle_tested: no falsifying examples found
 In [4]:
 ```
 
-## Example Usage
+## More Example Usage
 
 ```python
 from battle_tested import battle_tested
