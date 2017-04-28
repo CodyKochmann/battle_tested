@@ -1,6 +1,12 @@
 # battle_tested
 An automated library that puts functions through hell so in production your code will have already seen worse.
 
+## How to install it?
+
+```
+pip install --user battle_tested
+```
+
 ## iPython Demo
 
 ```python
