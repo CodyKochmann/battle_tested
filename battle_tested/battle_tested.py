@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-26 11:41:19
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-04-28 13:55:07
+# @Last Modified time: 2017-05-01 14:36:34
 
 from __future__ import print_function
 from functools import wraps
@@ -212,6 +212,7 @@ Or:
         def print_stats(count, timer, average):
             per_second = count/timer
             print('tests: {:<12} speed: {}/sec  avg: {}'.format(int(count),int(per_second),int(average.send(per_second))))
+
         interval = IntervalTimer(0.25, lambda:print_stats(next(count),next(timer),average))
         Timer(0.1,lambda:interval.start()).start()
 
@@ -224,10 +225,14 @@ Or:
             # unpack the arguments
             next(count)
             fn(*arg_list)
+
         # run the test
-        fuzz()
-        interval.stop()
-        gc_interval.stop()
+        try:
+            fuzz()
+        finally:
+            interval.stop()
+            gc_interval.stop()
+
         print('battle_tested: no falsifying examples found')
 
     def __call__(self, fn):
@@ -283,7 +288,7 @@ if __name__ == '__main__':
     #======================================
 
     def sample3(input_arg):
-        return True
+        return input_arg+1
 
     battle_tested.fuzz(sample3)
 
