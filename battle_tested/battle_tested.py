@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-26 11:41:19
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-05-01 14:36:34
+# @Last Modified time: 2017-05-05 12:07:12
 
 from __future__ import print_function
 from functools import wraps
@@ -26,11 +26,14 @@ garbage = (
     st.randoms(),
     st.text(),
     st.tuples(),
-    st.uuids()
+    st.uuids(),
+    st.dictionaries(keys=st.text(), values=st.text())
 )
 garbage+=(
+    # iterables
     st.lists(elements=st.one_of(*garbage)),
-    st.iterables(elements=st.one_of(*garbage))
+    st.iterables(elements=st.one_of(*garbage)),
+    st.dictionaries(keys=st.text(), values=st.one_of(*garbage))
 )
 garbage=st.one_of(*garbage)
 
@@ -79,7 +82,6 @@ class generators(object):
     def timer():
         """ generator that tracks time """
         start_time = time()
-        previous = start_time
         while 1:
             yield time()-start_time
 
@@ -205,7 +207,6 @@ Or:
         print('testing: {0}'.format(fn.__name__))
 
         count = generators.counter()
-        total = generators.sum()
         average = generators.avg()
         timer = generators.timer()
 
@@ -288,7 +289,7 @@ if __name__ == '__main__':
     #======================================
 
     def sample3(input_arg):
-        return input_arg+1
+        return input_arg #+1
 
     battle_tested.fuzz(sample3)
 
