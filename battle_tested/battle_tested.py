@@ -2,15 +2,14 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-26 11:41:19
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-05-05 12:07:12
+# @Last Modified time: 2017-05-18 15:19:36
 
 from __future__ import print_function
 from functools import wraps
 import logging
-import better_exceptions
+#import better_exceptions
 from hypothesis import given, strategies as st, settings, Verbosity
 from gc import collect as gc
-
 
 garbage = (
     st.binary(),
@@ -225,7 +224,16 @@ Or:
         def fuzz(arg_list):
             # unpack the arguments
             next(count)
-            fn(*arg_list)
+            try:
+                fn(*arg_list)
+            except Exception as ex:
+                exit("{}\nbattle_tested crashed {} with:\n\n  {}{}\n\nError Message - {}\n{}".format(
+                    '-'*80,
+                    fn.__name__,
+                    fn.__name__,
+                    tuple(arg_list),
+                    ex.message,
+                    '-'*80))
 
         # run the test
         try:
@@ -289,10 +297,9 @@ if __name__ == '__main__':
     #======================================
 
     def sample3(input_arg):
-        return input_arg #+1
+        # this one blows up on purpose
+        return input_arg+1
 
-    battle_tested.fuzz(sample3)
-
-    battle_tested.fuzz(sample3, seconds=10)
+    #battle_tested.fuzz(sample3, seconds=10)
 
     print('finished running battle_tested.py')
