@@ -35,6 +35,9 @@ def create_tag():
         date_tag = '.'.join(latest)
     return date_tag
 
+# make this part automated later, Im tired...
+raw_input('make sure you add {} to your setup.py'.format(create_tag()))
+
 commit_message = raw_input('Enter your commit message: ')
 
 bash("git status", False)
