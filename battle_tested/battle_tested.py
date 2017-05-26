@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-26 11:41:19
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-05-26 13:19:16
+# @Last Modified time: 2017-05-26 14:09:30
 
 from __future__ import print_function
 from functools import wraps
@@ -276,6 +276,9 @@ Or:
             return out
         return wrapper
 
+# make fuzz its own independent function
+fuzz = battle_tested.fuzz
+
 if __name__ == '__main__':
     #======================================
     #  Examples using the wrapper syntax
@@ -303,6 +306,6 @@ if __name__ == '__main__':
         # this one blows up on purpose
         return input_arg+1
 
-    battle_tested.fuzz(sample3, seconds=10)
+    #fuzz(sample3, seconds=10)
 
     print('finished running battle_tested.py')

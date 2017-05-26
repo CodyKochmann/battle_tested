@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
-# @Last Modified by:   cody
-# @Last Modified time: 2017-05-26 13:44:21
+# @Last Modified by:   Cody Kochmann
+# @Last Modified time: 2017-05-26 14:09:57
 
 """
 battle_tested - automated function fuzzer based on hypothesis to easily test production code
@@ -26,4 +26,5 @@ Or:
 
 """
 
-from battle_tested import battle_tested
+from battle_tested import battle_tested, fuzz
+
