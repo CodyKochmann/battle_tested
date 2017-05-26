@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified by:   cody
-# @Last Modified time: 2017-05-26 13:41:16
+# @Last Modified time: 2017-05-26 13:43:24
 
 """
 battle_tested - automated function fuzzer based on hypothesis to easily test production code
@@ -26,4 +26,4 @@ Or:
 
 """
 
-from battle_tested.battle_tested import battle_tested
+from battle_tested import battle_tested
