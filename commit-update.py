@@ -22,7 +22,7 @@ def latest_tag():
         out = i
     return out
 
-def create_tag():
+def create_next_tag():
     """ creates a tag based on the date and previous tags """
     date = datetime.utcnow()
     date_tag = '{}.{}.{}'.format(date.year, date.month, date.day)
@@ -35,8 +35,20 @@ def create_tag():
         date_tag = '.'.join(latest)
     return date_tag
 
+def replace_all_in_file(file_path, old, new):
+    with open(file_path, 'r') as reader:
+        file_text = reader.read()
+    file_text = file_text.replace(old, new)
+    with open(file_path, 'w') as writer:
+        writer.write(file_text)
+
+def update_setup():
+    args = 'setup.py', latest_tag(), create_next_tag()
+    raw_input("about to replace {1:} with {2:} in {0:}".format(*args)
+    replace_all_in_file(*args)
+
 # make this part automated later, Im tired...
-raw_input('make sure you add {} to your setup.py'.format(create_tag()))
+raw_input('make sure you add {} to your setup.py'.format(create_next_tag()))
 
 commit_message = raw_input('Enter your commit message: ')
 
@@ -44,7 +56,7 @@ bash("git status", False)
 bash('git add .')
 bash("git commit -m '{}'".format(commit_message))
 bash("git push origin master")
-bash("git tag {} -m '{}'".format(create_tag(), commit_message))
+bash("git tag {} -m '{}'".format(create_next_tag(), commit_message))
 bash("git push --tags origin master")
 bash("git status", False)
 bash("python setup.py register -r pypitest")
