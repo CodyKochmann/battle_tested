@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-26 11:41:19
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-05-18 15:19:36
+# @Last Modified time: 2017-05-26 13:00:14
 
 from __future__ import print_function
 from functools import wraps
@@ -227,13 +227,16 @@ Or:
             try:
                 fn(*arg_list)
             except Exception as ex:
-                exit("{}\nbattle_tested crashed {} with:\n\n  {}{}\n\nError Message - {}\n{}".format(
-                    '-'*80,
+                error_string = ("{}\nbattle_tested crashed {} with:\n\n  {}{}\n\nError Message - {}\n{}".format(
+                    '-'*70,
                     fn.__name__,
                     fn.__name__,
                     tuple(arg_list),
                     ex.message,
                     '-'*80))
+                ex.message = error_string
+                ex.args = error_string,
+                raise ex
 
         # run the test
         try:
