@@ -3,4 +3,3 @@ README
 setup.cfg
 setup.py
 battle_tested/__init__.py
-battle_tested/battle_tested.py
