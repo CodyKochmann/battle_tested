@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-26 11:41:19
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-05-26 13:00:14
+# @Last Modified time: 2017-05-26 13:19:16
 
 from __future__ import print_function
 from functools import wraps
@@ -228,11 +228,11 @@ Or:
                 fn(*arg_list)
             except Exception as ex:
                 error_string = ("{}\nbattle_tested crashed {} with:\n\n  {}{}\n\nError Message - {}\n{}".format(
-                    '-'*70,
+                    '-'*(80-(len(type(ex).__name__)+2)),
                     fn.__name__,
                     fn.__name__,
                     tuple(arg_list),
-                    ex.message,
+                    (ex.message if 'message' in dir(ex) else 'no message found'),
                     '-'*80))
                 ex.message = error_string
                 ex.args = error_string,
@@ -303,6 +303,6 @@ if __name__ == '__main__':
         # this one blows up on purpose
         return input_arg+1
 
-    #battle_tested.fuzz(sample3, seconds=10)
+    battle_tested.fuzz(sample3, seconds=10)
 
     print('finished running battle_tested.py')
