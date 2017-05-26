@@ -48,7 +48,7 @@ def update_setup():
     replace_all_in_file(*args)
 
 # make this part automated later, Im tired...
-raw_input('make sure you add {} to your setup.py'.format(create_next_tag()))
+update_setup()
 
 commit_message = raw_input('Enter your commit message: ')
 
