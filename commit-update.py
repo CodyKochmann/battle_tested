@@ -47,8 +47,18 @@ def update_setup():
     raw_input("about to replace {1:} with {2:} in {0:}".format(*args))
     replace_all_in_file(*args)
 
+def sync_readmes():
+    """ just copies README.md into README for pypi documentation """
+    print("syncing README")
+    with open("README.md", 'r') as reader:
+        file_text = reader.read()
+    with open("README", 'w') as writer:
+        writer.write(file_text)
+
+
 # make this part automated later, Im tired...
 update_setup()
+sync_readmes()
 
 commit_message = raw_input('Enter your commit message: ')
 
