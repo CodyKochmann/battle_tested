@@ -44,7 +44,7 @@ def replace_all_in_file(file_path, old, new):
 
 def update_setup():
     args = 'setup.py', latest_tag(), create_next_tag()
-    raw_input("about to replace {1:} with {2:} in {0:}".format(*args)
+    raw_input("about to replace {1:} with {2:} in {0:}".format(*args))
     replace_all_in_file(*args)
 
 # make this part automated later, Im tired...
