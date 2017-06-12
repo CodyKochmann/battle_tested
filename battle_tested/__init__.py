@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-05-26 14:20:11
+# @Last Modified time: 2017-06-12 16:19:07
 
 """
 battle_tested - automated function fuzzer based on hypothesis to easily test production code
@@ -254,7 +254,7 @@ Or:
                     fn.__name__,
                     fn.__name__,
                     tuple(arg_list),
-                    (ex.message if 'message' in dir(ex) else 'no message found'),
+                    (ex.message if 'message' in dir(ex) else ex.args[0]),
                     '-'*80))
                 ex.message = error_string
                 ex.args = error_string,
@@ -266,6 +266,7 @@ Or:
         finally:
             interval.stop()
             gc_interval.stop()
+            print('total tests: {}'.format(next(count)-1))
 
         print('battle_tested: no falsifying examples found')
 
@@ -305,7 +306,6 @@ if __name__ == '__main__':
     #======================================
     #  Examples using the wrapper syntax
     #======================================
-    """
     @battle_tested(default_output=[], seconds=1, max_tests=5)
     def sample(i):
         return []
@@ -328,7 +328,7 @@ if __name__ == '__main__':
         # this one blows up on purpose
         return input_arg+1
 
-    #fuzz(sample3, seconds=10)
+    fuzz(sample3, seconds=10)
 
     print('finished running battle_tested.py')
-    """
+
