@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-06-14 16:55:44
+# @Last Modified time: 2017-06-14 18:01:11
 
 """
 battle_tested - automated function fuzzer based on hypothesis to easily test production code
@@ -373,13 +373,6 @@ Or:
             try:
                 fn(*arg_list)
             except Exception as ex:
-                """error_string = ("{}\nbattle_tested crashed {} with:\n\n  {}{}\n\nError Message - {}\n{}".format(
-                    '-'*(80-(len(type(ex).__name__)+2)),
-                    fn.__name__,
-                    fn.__name__,
-                    (tuple(arg_list) if len(arg_list)>1 else '({})'.format(arg_list[0])),
-                    (ex.message if 'message' in dir(ex) else ex.args[0]),
-                    '-'*80))"""
                 # get the step where the code broke
 
                 tb_steps_full = [i for i in traceback_steps(traceback.format_exc())]
