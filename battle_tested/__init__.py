@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-06-14 16:42:01
+# @Last Modified time: 2017-06-14 16:55:44
 
 """
 battle_tested - automated function fuzzer based on hypothesis to easily test production code
@@ -170,8 +170,7 @@ Breakpoint: {break_path:} - line {break_line_number:}""".format(
         )
     except Exception as ex:
         # i only want this part if the whole file read works
-        raise ex
-        #pass
+        pass
     out += """
 To reproduce this error, run:
 
