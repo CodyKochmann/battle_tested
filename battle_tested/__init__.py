@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-06-12 16:19:07
+# @Last Modified time: 2017-06-14 16:42:01
 
 """
 battle_tested - automated function fuzzer based on hypothesis to easily test production code
@@ -32,6 +32,11 @@ import logging
 #import better_exceptions
 from hypothesis import given, strategies as st, settings, Verbosity
 from gc import collect as gc
+import traceback
+import sys
+from time import time
+
+__all__ = 'battle_tested', 'fuzz', 'disable_traceback', 'enable_traceback', 'garbage'
 
 garbage = (
     st.binary(),
@@ -58,8 +63,128 @@ garbage+=(
 )
 garbage=st.one_of(*garbage)
 
+def is_py3():
+    return sys.version_info >= (3, 0)
 
-from time import time
+class tb_controls():
+    old_excepthook = sys.excepthook
+    no_tracebacklimit_on_sys='tracebacklimit' not in dir(sys)
+    old_tracebacklimit = (sys.tracebacklimit if 'tracebacklimit' in dir(sys) else None)
+    traceback_disabled = False
+
+    @staticmethod
+    def disable_traceback():
+        if is_py3():
+            sys.tracebacklimit = None
+        else:
+            sys.excepthook = lambda t, v, n:tb_controls.old_excepthook(t, v, None)
+        tb_controls.traceback_disabled = True
+
+    @staticmethod
+    def enable_traceback():
+        if tb_controls.traceback_disabled:
+            if is_py3():
+                if tb_controls.no_tracebacklimit_on_sys:
+                    del sys.tracebacklimit
+                else:
+                    sys.tracebacklimit = tb_controls.old_tracebacklimit
+            else:
+                sys.excepthook = tb_controls.old_excepthook
+            tb_controls.traceback_disabled = False
+
+def enable_traceback():
+    """ disables tracebacks from being added to exception raises """
+    tb_controls.enable_traceback()
+
+def disable_traceback():
+    """ enables tracebacks to be added to exception raises """
+    tb_controls.disable_traceback()
+
+def traceback_steps(trace_text):
+    """ this generates the steps in a traceback
+        usage:
+            traceback_steps(traceback.format_exc())
+    """
+    # get rid of the first line with traceback
+    trace_text = ('\n'.join(trace_text.splitlines()[1:-1]))
+    # split the text into traceback steps
+    file_lines = [i for i in trace_text.splitlines() if i.startswith('  File "') and '", line' in i]
+    # build the output
+    out = []
+    for i in trace_text.splitlines():
+        if i in file_lines:
+            if len(out):
+                yield '\n'.join(out)
+            out = [i]
+        else:
+            out.append(i)
+    yield '\n'.join(out)
+
+def format_error_message(f_name, err_msg, trace_text, evil_args):
+    top_line = " battle_tested crashed {f_name:}() ".format(f_name=f_name)
+    while len(top_line) < 79:
+        top_line = "-{}-".format(top_line)
+    top_line = '\n\n{}'.format(top_line)
+    bottom_line = '-'*len(top_line)
+
+    break_path = trace_text.split('"')[1]
+    break_line_number = int(trace_text.split(',')[1].split(' ')[-1])
+    break_line_number_up = break_line_number-1
+    break_line_number_down = break_line_number+1
+
+    out = """{top_line:}
+
+Error Message:
+
+   {err_msg:}
+
+Breakpoint: {break_path:} - line {break_line_number:}""".format(
+        top_line=top_line,
+        err_msg=err_msg,
+        break_path=break_path,
+        break_line_number=break_line_number
+    )
+
+    try:
+        with open(break_path) as f:
+            for i, line in enumerate(f):
+                i+=1
+                if i == break_line_number_up:
+                    line_above=line.replace('\n','')
+                if i == break_line_number:
+                    break_line=line.replace('\n','')
+                if i == break_line_number_down:
+                    line_below=line.replace('\n','')
+
+        out += """
+  {break_line_number_up:>{num_len:}}|{line_above:}
+->{break_line_number:>{num_len:}}|{break_line:}
+  {break_line_number_down:>{num_len:}}|{line_below:}""".format(
+            break_line_number_up=break_line_number_up,
+            break_line_number=break_line_number,
+            break_line_number_down=break_line_number_down,
+            line_above=line_above,
+            line_below=line_below,
+            break_line=break_line,
+            num_len=len(str(break_line_number_down))+1
+        )
+    except Exception as ex:
+        # i only want this part if the whole file read works
+        raise ex
+        #pass
+    out += """
+To reproduce this error, run:
+
+   {f_name:}{evil_args:}
+
+{bottom_line:}
+""".format(
+        bottom_line=bottom_line,
+        f_name=f_name,
+        evil_args=evil_args,
+        )
+    return out
+
 
 class generators(object):
     def started(generator_function):
@@ -249,15 +374,33 @@ Or:
             try:
                 fn(*arg_list)
             except Exception as ex:
-                error_string = ("{}\nbattle_tested crashed {} with:\n\n  {}{}\n\nError Message - {}\n{}".format(
+                """error_string = ("{}\nbattle_tested crashed {} with:\n\n  {}{}\n\nError Message - {}\n{}".format(
                     '-'*(80-(len(type(ex).__name__)+2)),
                     fn.__name__,
                     fn.__name__,
-                    tuple(arg_list),
+                    (tuple(arg_list) if len(arg_list)>1 else '({})'.format(arg_list[0])),
                     (ex.message if 'message' in dir(ex) else ex.args[0]),
-                    '-'*80))
+                    '-'*80))"""
+                # get the step where the code broke
+
+                tb_steps_full = [i for i in traceback_steps(traceback.format_exc())]
+                tb_steps_with_func_name = [i for i in tb_steps_full if i.splitlines()[0].endswith(fn.__name__)]
+
+                if len(tb_steps_with_func_name)>0:
+                    tb = tb_steps_with_func_name[-1]
+                else:
+                    tb = tb_steps_full[-1]
+
+                error_string = format_error_message(
+                    fn.__name__,
+                    '{} - {}'.format(type(ex).__name__,(ex.message if 'message' in dir(ex) else ex.args[0])),
+                    tb,
+                    (tuple(arg_list) if len(arg_list)>1 else '({})'.format(repr(arg_list[0])))
+                )
+
                 ex.message = error_string
                 ex.args = error_string,
+                print('total tests: {}'.format(next(count)-1))
                 raise ex
 
         # run the test
@@ -266,9 +409,9 @@ Or:
         finally:
             interval.stop()
             gc_interval.stop()
-            print('total tests: {}'.format(next(count)-1))
 
         print('battle_tested: no falsifying examples found')
+        print('total tests: {}'.format(next(count)-1))
 
     def __call__(self, fn):
         """ runs before the decorated function is called """
@@ -328,7 +471,8 @@ if __name__ == '__main__':
         # this one blows up on purpose
         return input_arg+1
 
-    fuzz(sample3, seconds=10)
+    #fuzz(lambda i:i+1)
+    #fuzz(sample3, seconds=10)
 
     print('finished running battle_tested.py')
 
