@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-06-14 18:01:11
+# @Last Modified time: 2017-06-19 17:35:44
 
 """
 battle_tested - automated function fuzzer based on hypothesis to easily test production code
@@ -100,11 +100,13 @@ def disable_traceback():
     """ enables tracebacks to be added to exception raises """
     tb_controls.disable_traceback()
 
-def traceback_steps(trace_text):
+def traceback_steps(trace_text=None):
     """ this generates the steps in a traceback
         usage:
             traceback_steps(traceback.format_exc())
     """
+    if trace_text == None:
+        trace_text = traceback.format_exc()
     # get rid of the first line with traceback
     trace_text = ('\n'.join(trace_text.splitlines()[1:-1]))
     # split the text into traceback steps
@@ -119,6 +121,10 @@ def traceback_steps(trace_text):
         else:
             out.append(i)
     yield '\n'.join(out)
+
+def traceback_text():
+    """ this returns the traceback in text form """
+    return('\n'.join(i for i in traceback_steps()))
 
 def format_error_message(f_name, err_msg, trace_text, evil_args):
     top_line = " battle_tested crashed {f_name:}() ".format(f_name=f_name)
@@ -337,12 +343,19 @@ Or:
         assert callable(fn), 'battle_tested needs a callable function, not {0}'.format(repr(fn))
 
     @staticmethod
-    def fuzz(fn, seconds=2, max_tests=1000000, verbose=False):
+    def __verify_keep_testing__(keep_testing):
+        """ ensures keep_testing is a valid argument """
+        assert type(keep_testing) == bool, 'keep_testing needs to be a bool'
+        assert keep_testing == True or keep_testing == False, 'invalid value for keep_testing'
+
+    @staticmethod
+    def fuzz(fn, seconds=2, max_tests=1000000, verbose=False, keep_testing=False):
         """ staticly tests input funcions """
         battle_tested.__verify_function__(fn)
         battle_tested.__verify_seconds__(seconds)
         battle_tested.__verify_verbose__(verbose)
         battle_tested.__verify_max_tests__(max_tests)
+        battle_tested.__verify_keep_testing__(keep_testing)
 
         args_needed=function_arg_count(fn)
 
@@ -365,6 +378,8 @@ Or:
         gc_interval = IntervalTimer(3, gc)
         gc_interval.start()
 
+        battle_tested.crash_map = {}
+
         @settings(timeout=seconds, max_examples=max_tests, verbosity=(Verbosity.verbose if verbose else Verbosity.normal))
         @given(strategy)
         def fuzz(arg_list):
@@ -375,7 +390,7 @@ Or:
             except Exception as ex:
                 # get the step where the code broke
 
-                tb_steps_full = [i for i in traceback_steps(traceback.format_exc())]
+                tb_steps_full = [i for i in traceback_steps()]
                 tb_steps_with_func_name = [i for i in tb_steps_full if i.splitlines()[0].endswith(fn.__name__)]
 
                 if len(tb_steps_with_func_name)>0:
@@ -390,10 +405,13 @@ Or:
                     (tuple(arg_list) if len(arg_list)>1 else '({})'.format(repr(arg_list[0])))
                 )
 
-                ex.message = error_string
-                ex.args = error_string,
                 print('total tests: {}'.format(next(count)-1))
-                raise ex
+                if keep_testing:
+                    battle_tested.crash_map['\n'.join(i for i in traceback_text().split('\n') if 'File' in i)]={'message':ex.args[0],'args':arg_list}
+                else:
+                    ex.message = error_string
+                    ex.args = error_string,
+                    raise ex
 
         # run the test
         try:
@@ -402,7 +420,10 @@ Or:
             interval.stop()
             gc_interval.stop()
 
-        print('battle_tested: no falsifying examples found')
+        if keep_testing:
+            print('found {} examples that break {}'.format(len(battle_tested.crash_map),fn.__name__))
+        else:
+            print('battle_tested: no falsifying examples found')
         print('total tests: {}'.format(next(count)-1))
 
     def __call__(self, fn):
@@ -464,7 +485,22 @@ if __name__ == '__main__':
         return input_arg+1
 
     #fuzz(lambda i:i+1)
-    #fuzz(sample3, seconds=10)
+    #fuzz(sample3, seconds=10, keep_testing=True)
+
+    #======================================
+    #   example harness
+    #======================================
+    def harness(key,value):
+        global mydict
+        global crash_examples
+        global successful_types
+        try:
+            mydict[key]=value
+            successful_types.add((type(key).name, type(value).name))
+        except Exception as e:
+            print('found one')
+            crash_examples[e.args[0]]=(key,value)
+
 
     print('finished running battle_tested.py')
 
