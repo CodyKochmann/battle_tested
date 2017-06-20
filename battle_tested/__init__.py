@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-06-20 14:42:01
+# @Last Modified time: 2017-06-20 14:47:52
 
 """
 battle_tested - automated function fuzzer based on hypothesis to easily test production code
@@ -397,7 +397,7 @@ Or:
             next(count)
             try:
                 fn(*arg_list)
-                battle_tested.success_map.add(tuple(type(i).__name__ for i in arg_list))
+                battle_tested.success_map.add(tuple(type(i) for i in arg_list))
             except Exception as ex:
                 # get the step where the code broke
 
