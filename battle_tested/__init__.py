@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-06-21 13:51:33
+# @Last Modified time: 2017-06-21 14:42:41
 
 """
 battle_tested - automated function fuzzer based on hypothesis to easily test production code
@@ -417,7 +417,7 @@ Or:
                 )
 
                 if keep_testing:
-                    battle_tested.crash_map['{}{}'.format('\n'.join(i for i in traceback_text().split('\n') if 'File' in i),ex.args[0])]={'type':type(ex),'message':ex.args[0],'args':arg_list}
+                    battle_tested.crash_map['{}{}'.format('\n'.join(i for i in traceback_text().split('\n') if 'File' in i),ex.args[0])]={'type':type(ex),'message':ex.args[0],'args':arg_list,'arg_types':tuple(type(i) for i in arg_list)}
                 else:
                     ex.message = error_string
                     ex.args = error_string,
