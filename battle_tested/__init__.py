@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-06-21 14:42:41
+# @Last Modified time: 2017-06-22 14:33:12
 
 """
 battle_tested - automated function fuzzer based on hypothesis to easily test production code
@@ -270,6 +270,32 @@ class IntervalTimer(object):
         except AttributeError:
             pass
 
+from io import StringIO
+def run_silently(fn):
+    """ runs a function silently with no stdout """
+    stdout_holder = sys.stdout
+    sys.stdout = StringIO()
+    fn()
+    sys.stdout = stdout_holder
+
+class ipython_tools(object):
+    """ tools to make battle_tested work with ipython nicely """
+    detected = 'IPython' in sys.modules
+    if detected:
+        from IPython import get_ipython
+        magic = get_ipython().magic
+    @staticmethod
+    def silence_traceback():
+        'silences ipythons verbose debugging temporarily'
+        if ipython_tools.detected:
+            # this hijacks stdout because there is a print in ipython.magic
+            run_silently(lambda:ipython_tools.magic("xmode Plain"))
+    @staticmethod
+    def verbose_traceback():
+        're-enables ipythons verbose tracebacks'
+        if ipython_tools.detected:
+            ipython_tools.magic("xmode Verbose")
+
 
 def function_arg_count(fn):
     """ generates a list of the given function's arguments """
@@ -382,6 +408,8 @@ Or:
             per_second = count/timer
             print('tests: {:<12} speed: {}/sec  avg: {}'.format(int(count),int(per_second),int(average.send(per_second))))
 
+        ipython_tools.silence_traceback()
+
         interval = IntervalTimer(0.25, lambda:print_stats(next(count),next(timer),average))
         Timer(0.1,lambda:interval.start()).start()
 
@@ -417,7 +445,7 @@ Or:
                 )
 
                 if keep_testing:
-                    battle_tested.crash_map['{}{}'.format('\n'.join(i for i in traceback_text().split('\n') if 'File' in i),ex.args[0])]={'type':type(ex),'message':ex.args[0],'args':arg_list,'arg_types':tuple(type(i) for i in arg_list)}
+                    battle_tested.crash_map['{}{}'.format(traceback_text(),ex.args[0])]={'type':type(ex),'message':ex.args[0],'args':arg_list,'arg_types':tuple(type(i) for i in arg_list)}
                 else:
                     ex.message = error_string
                     ex.args = error_string,
