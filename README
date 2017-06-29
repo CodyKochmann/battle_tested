@@ -10,16 +10,12 @@ pip install --user battle_tested
 ## iPython Demo
 
 ```python
-In [1]: from battle_tested import battle_tested
-WARNING: better_exceptions will only inspect code from the command line
-         when using: `python -m better_exceptions'. Otherwise, only code
-         loaded from files will be inspected!
-
+In [1]: from battle_tested import fuzz
 In [2]: def test(a):
    ...:     return a,a
    ...:
 
-In [3]: battle_tested.fuzz(test)
+In [3]: fuzz(test)
 testing: test
 tests: 163          speed: 1622/sec  avg: 1622
 tests: 872          speed: 1755/sec  avg: 1688
@@ -34,7 +30,7 @@ In [4]:
 ## More Example Usage
 
 ```python
-from battle_tested import battle_tested
+from battle_tested import battle_tested, fuzz
 
 @battle_tested(default_output=[], verbose=True, seconds=1, max_tests=5)
 def sample(i):
@@ -57,5 +53,5 @@ print(sample2('a','b',2,4))
 def sample3(input_arg):
     return True
 
-battle_tested.fuzz(sample3, verbose=True)
+fuzz(sample3, keep_testing=True)
 ```

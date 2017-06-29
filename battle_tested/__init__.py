@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-06-22 14:33:12
+# @Last Modified time: 2017-06-29 14:10:46
 
 """
 battle_tested - automated function fuzzer based on hypothesis to easily test production code
@@ -383,7 +383,21 @@ Or:
 
     @staticmethod
     def fuzz(fn, seconds=2, max_tests=1000000, verbose=False, keep_testing=False):
-        """ staticly tests input funcions """
+        """
+This is the primary way to test functions with battle_tested.
+
+Example Uses:
+    fuzz(my_function)                     # run a generic test to see if anything breaks
+    fuzz(my_function, keep_testing=True)  # runs tests and collects the outcomes in `crash_map()` and `success_map()`
+
+Parameters:
+    fn           - the function that you are going to fuzz (must accept at least one argument)
+    seconds      - maximum time battle_tested is allowed to fuzz the given function
+    max_tests    - maximum number of tests battle_tested will run before exiting (if the time limit doesn't come first)
+    verbose      - setting this to True dumps the parameters being tested to stdout as they are being generated
+    keep_testing - setting this to True allows battle_tested to keep testing even after it finds the first falsifying
+                   example, the results of that test will be found by running crash_map() and success_map()
+"""
         battle_tested.__verify_function__(fn)
         battle_tested.__verify_seconds__(seconds)
         battle_tested.__verify_verbose__(verbose)
