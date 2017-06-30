@@ -2,19 +2,22 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-06-29 14:10:46
+# @Last Modified time: 2017-06-30 12:53:01
 
 """
-battle_tested - automated function fuzzer based on hypothesis to easily test production code
+battle_tested - automated function fuzzing library to quickly test production
+                code to prove it is "battle tested" and safe to use.
 
-Example Usage:
+Examples of Primary Uses:
 
-    from battle_tested import battle_tested
+    from battle_tested import fuzz
 
     def test_function(a,b,c):
         return c,b,a
 
-    battle_tested(test_function)
+    fuzz(test_function)
+    # or to collect tests
+    fuzz(test_function, keep_testing=True)
 
 Or:
 
@@ -29,7 +32,6 @@ Or:
 from __future__ import print_function
 from functools import wraps
 import logging
-#import better_exceptions
 from hypothesis import given, strategies as st, settings, Verbosity
 from gc import collect as gc
 import traceback
@@ -304,17 +306,19 @@ def function_arg_count(fn):
 
 class battle_tested(object):
     """
+battle_tested - automated function fuzzing library to quickly test production
+                code to prove it is "battle tested" and safe to use.
 
-battle_tested - automated function fuzzer to easily test production code
+Examples of Primary Uses:
 
-Example Usage:
-
-    from battle_tested import battle_tested
+    from battle_tested import fuzz
 
     def test_function(a,b,c):
         return c,b,a
 
-    battle_tested(test_function)
+    fuzz(test_function)
+    # or to collect tests
+    fuzz(test_function, keep_testing=True)
 
 Or:
 
@@ -384,19 +388,30 @@ Or:
     @staticmethod
     def fuzz(fn, seconds=2, max_tests=1000000, verbose=False, keep_testing=False):
         """
-This is the primary way to test functions with battle_tested.
 
-Example Uses:
-    fuzz(my_function)                     # run a generic test to see if anything breaks
-    fuzz(my_function, keep_testing=True)  # runs tests and collects the outcomes in `crash_map()` and `success_map()`
+fuzz - battle_tested's primary weapon for testing functions.
+
+Example Usage:
+
+    def my_function(a, b):
+        ''' switches the variables '''
+        return b, a
+
+    fuzz(my_function)                     # runs a quick test to find breaks
+    fuzz(my_function, keep_testing=True)  # runs tests and collects the outcomes
+                                          # in `crash_map()` and `success_map()`
 
 Parameters:
-    fn           - the function that you are going to fuzz (must accept at least one argument)
-    seconds      - maximum time battle_tested is allowed to fuzz the given function
-    max_tests    - maximum number of tests battle_tested will run before exiting (if the time limit doesn't come first)
-    verbose      - setting this to True dumps the parameters being tested to stdout as they are being generated
-    keep_testing - setting this to True allows battle_tested to keep testing even after it finds the first falsifying
-                   example, the results of that test will be found by running crash_map() and success_map()
+
+    fn           - the function to be fuzzed (must accept at least one argument)
+    seconds      - maximum time battle_tested is allowed to fuzz the function
+    max_tests    - maximum number of tests battle_tested will run before exiting
+                   (if the time limit doesn't come first)
+    verbose      - setting this to True dumps the parameters being tested to
+                   stdout as they are being generated
+    keep_testing - setting this to True allows battle_tested to keep testing
+                   even after it finds the first falsifying example, the results
+                   can be accessed with crash_map() and success_map()
 """
         battle_tested.__verify_function__(fn)
         battle_tested.__verify_seconds__(seconds)
@@ -474,7 +489,9 @@ Parameters:
             print('total tests: {}'.format(next(count)))
 
         if keep_testing:
-            print('found {} examples that break {}()'.format(len(battle_tested.crash_map),fn.__name__))
+            examples_that_break = ('examples that break' if len(battle_tested.crash_map)>1 else 'example that broke')
+            print('found {} {} {}()'.format(len(battle_tested.crash_map),examples_that_break,fn.__name__))
+            print('run crash_map() or success_map() to access the test results')
         else:
             print('battle_tested: no falsifying examples found')
 
