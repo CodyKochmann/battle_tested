@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-06-30 12:53:01
+# @Last Modified time: 2017-07-03 10:18:26
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -37,8 +37,9 @@ from gc import collect as gc
 import traceback
 import sys
 from time import time
+from stricttuple import stricttuple
 
-__all__ = 'battle_tested', 'fuzz', 'disable_traceback', 'enable_traceback', 'garbage', 'crash_map', 'success_map'
+__all__ = 'battle_tested', 'fuzz', 'disable_traceback', 'enable_traceback', 'garbage', 'crash_map', 'success_map', 'results', 'stats', 'print_stats'
 
 garbage = (
     st.binary(),
@@ -372,10 +373,66 @@ Or:
         assert callable(fn), 'battle_tested needs a callable function, not {0}'.format(repr(fn))
 
     @staticmethod
+    def __verify_tested__(fn):
+        """ asserts that the function exists in battle_tested's results """
+        battle_tested.__verify_function__(fn)
+        assert fn in battle_tested._results.keys(), '{} was not found in battle_tested\'s results, you probably haven\'t tested it yet'.format(fn)
+
+    @staticmethod
     def __verify_keep_testing__(keep_testing):
         """ ensures keep_testing is a valid argument """
         assert type(keep_testing) == bool, 'keep_testing needs to be a bool'
         assert keep_testing == True or keep_testing == False, 'invalid value for keep_testing'
+
+    _results = {} # where all of the test results go.
+    # results are composed like this
+    # results[my_function]['unique_crashes']=[list_of_crashes]
+    # results[my_function]['successes']=[list_of_successes]
+
+    Crash = stricttuple(
+        'Crash',
+        arg_types = (
+             lambda arg_types:type(arg_types)==tuple,
+             lambda arg_types:len(arg_types)>0,
+        ),
+        args = (
+            lambda args:type(args)==tuple,
+            lambda args:len(args)>0,
+        ),
+        message = (
+            lambda message:type(message) == str or message == None ,
+        ),
+        err_type = (
+            lambda err_type:type(err_type)==type ,
+        ),
+        trace = (
+            lambda trace:type(trace)==str ,
+        )
+    )
+
+    @staticmethod
+    def results(fn):
+        '''returns the collected results of the given function'''
+        battle_tested.__verify_tested__(fn)
+        return battle_tested._results[fn]
+
+    @staticmethod
+    def stats(fn):
+        ''' returns the stats found when testing a function '''
+        results = battle_tested.results(fn)
+        return {k:len(results[k]) for k in results}
+
+    @staticmethod
+    def print_stats(fn):
+        ''' prints the stats on a tested function '''
+        stats = battle_tested.stats(fn)
+        print('fuzzing {}() found:'.format(fn.__name__ if '__name__' in dir(fn) else fn))
+        longest_key = max(len(k) for k in stats)
+        for k in sorted(stats.keys()):
+            print('  {key:{longest_key}} - {cnt}'.format(
+                key=k,
+                longest_key=longest_key,
+                cnt=stats[k]))
 
     # these two are here so the maps can have doc strings
     class _crash_map(dict):
@@ -439,6 +496,15 @@ Parameters:
 
         ipython_tools.silence_traceback()
 
+        battle_tested._results[fn] = {
+            'successful_input_types':set(),
+            'crash_input_types':set(),
+            'iffy_input_types':set(), # types that both succeed and crash the function
+            'output_types':set(),
+            'exception_types':set(),
+            'unique_crashes':dict()
+        }
+
         interval = IntervalTimer(0.25, lambda:print_stats(next(count),next(timer),average))
         Timer(0.1,lambda:interval.start()).start()
 
@@ -453,11 +519,12 @@ Parameters:
             # unpack the arguments
             next(count)
             try:
-                fn(*arg_list)
+                out = fn(*arg_list)
+                battle_tested._results[fn]['successful_input_types'].add(tuple(type(i) for i in arg_list))
+                battle_tested._results[fn]['output_types'].add(type(out))
                 battle_tested.success_map.add(tuple(type(i) for i in arg_list))
             except Exception as ex:
                 # get the step where the code broke
-
                 tb_steps_full = [i for i in traceback_steps()]
                 tb_steps_with_func_name = [i for i in tb_steps_full if i.splitlines()[0].endswith(fn.__name__)]
 
@@ -473,8 +540,19 @@ Parameters:
                     (arg_list if len(arg_list)!=1 else '({})'.format(repr(arg_list[0])))
                 )
 
+                battle_tested._results[fn]['crash_input_types'].add(tuple(type(i) for i in arg_list))
+
                 if keep_testing:
-                    battle_tested.crash_map['{}{}'.format(traceback_text(),ex.args[0])]={'type':type(ex),'message':ex.args[0],'args':arg_list,'arg_types':tuple(type(i) for i in arg_list)}
+                    tb = '{}{}'.format(traceback_text(),ex.args[0])
+                    battle_tested.crash_map[tb]={'type':type(ex),'message':ex.args[0],'args':arg_list,'arg_types':tuple(type(i) for i in arg_list)}
+                    battle_tested._results[fn]['unique_crashes'][tb]=battle_tested.Crash(
+                        err_type=type(ex),
+                        message=repr(ex.args[0]),
+                        args=arg_list,
+                        arg_types=tuple(type(i) for i in arg_list),
+                        trace=tb
+                    )
+                    battle_tested._results[fn]['exception_types'].add(type(ex))
                 else:
                     ex.message = error_string
                     ex.args = error_string,
@@ -486,12 +564,17 @@ Parameters:
         finally:
             interval.stop()
             gc_interval.stop()
+            # find the types that both crashed and succeeded
+            battle_tested._results[fn]['iffy_input_types'] = set(i for i in battle_tested._results[fn]['crash_input_types'] if i in battle_tested._results[fn]['successful_input_types'])
+            # clean up the unique_crashes section
+            battle_tested._results[fn]['unique_crashes'] = tuple(battle_tested._results[fn]['unique_crashes'].values())
             print('total tests: {}'.format(next(count)))
 
         if keep_testing:
-            examples_that_break = ('examples that break' if len(battle_tested.crash_map)>1 else 'example that broke')
-            print('found {} {} {}()'.format(len(battle_tested.crash_map),examples_that_break,fn.__name__))
-            print('run crash_map() or success_map() to access the test results')
+            #examples_that_break = ('examples that break' if len(battle_tested.crash_map)>1 else 'example that broke')
+            #print('found {} {} {}()'.format(len(battle_tested.crash_map),examples_that_break,fn.__name__))
+            battle_tested.print_stats(fn)
+            #print('run crash_map() or success_map() to access the test results')
         else:
             print('battle_tested: no falsifying examples found')
 
@@ -526,7 +609,9 @@ Parameters:
 
 # make fuzz its own independent function
 fuzz = battle_tested.fuzz
-
+results = battle_tested.results
+stats = battle_tested.stats
+print_stats = battle_tested.print_stats
 
 def crash_map():
     '''returns a map of crashes generated by the previous test'''
@@ -563,7 +648,7 @@ if __name__ == '__main__':
         return input_arg+1
 
     #fuzz(lambda i:i+1)
-    fuzz(sample3, seconds=10, keep_testing=True)
+    fuzz(sample3, seconds=2, keep_testing=True)
     crash_map()
     success_map()
 
@@ -582,5 +667,10 @@ if __name__ == '__main__':
             crash_examples[e.args[0]]=(key,value)
 
 
-    print('finished running battle_tested.py')
 
+    from pprint import pprint
+
+    sample3_results = battle_tested.results(sample3)
+    pprint(sample3_results)
+
+    print('finished running battle_tested.py')
