@@ -2,7 +2,7 @@
 # @Author: cody
 # @Date:   2017-06-27 14:18:29
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-07-04 15:06:32
+# @Last Modified time: 2017-07-06 13:50:32
 
 import sys
 
@@ -89,7 +89,7 @@ print(collection.types)
 print('---------------')
 print(len(collection.modules),'modules')
 print(len(collection.types),'types')
-
+'''
 for f in collection.generated_functions:
     #print(f,f.__code__.co_argcount)
     out = 'undefinednone'
@@ -102,3 +102,33 @@ for f in collection.generated_functions:
             pass
     if out == 'undefinednone':
         print(f,'didnt work----------------------------------')
+
+'''
+
+for i in range(4):
+    print('-'*40)
+
+
+
+''' holy shit the stuff below is dangerous '''
+
+"""
+def violent_furniture_generator():
+    while 1:
+        for f in collection.generated_functions:
+            try:
+                out = f()
+                yield out
+            except:
+                pass
+violent_furniture = violent_furniture_generator()
+next(violent_furniture)
+generate_furniture = lambda i:(violent_furniture.send(None),)
+
+from hypothesis import strategies as st
+
+furniture = st.none().map(generate_furniture)
+
+for i in range(8):
+    print(furniture.example())
+"""
