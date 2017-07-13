@@ -2,13 +2,13 @@ from distutils.core import setup
 setup(
   name = 'battle_tested',
   packages = ['battle_tested'], # this must be the same as the name above
-  version = '2017.7.3',
+  version = '2017.7.13',
   install_requires=["hypothesis", "stricttuple"],
   description = 'automated function fuzzer based on hypothesis to easily test production code',
   author = 'Cody Kochmann',
   author_email = 'kochmanncody@gmail.com',
   url = 'https://github.com/CodyKochmann/battle_tested',
-  download_url = 'https://github.com/CodyKochmann/battle_tested/tarball/2017.7.3',
+  download_url = 'https://github.com/CodyKochmann/battle_tested/tarball/2017.7.13',
   keywords = ['battle_tested', 'test', 'hypothesis', 'fuzzing', 'fuzz', 'production'],
   classifiers = [],
 )
