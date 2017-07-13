@@ -4,9 +4,9 @@ import re
 import os
 from os import scandir as ls
 def walk(dir='./'):
+  '''hello'''
   print('running walk')
   scan_queue=[ls(dir)]
-  '''hello'''
   out=[]
   while len(scan_queue):
     # pop the next item to scan
@@ -174,6 +174,8 @@ def remove_comments(code):
         out.append(''.join(takewhile(lambda c:c!='#',iter(line))))
     return '\n'.join(out)
 
+from pprint import pprint
+
 for line in final_frames:
     frame = final_frames[line]
     line = remove_comments(line)
@@ -182,7 +184,11 @@ for line in final_frames:
     relative_vars = [k for k in frame_vars if k in re.findall(r'[a-zA-Z_]{1,}', line)]
     print(line)
     bar()
-    print({k:frame_vars[k] for k in relative_vars})
+    line_vars = {k:frame_vars[k] for k in relative_vars}
+    try:
+        pprint(line_vars)
+    except:
+        print(line_vars)
     bar()
     bar()
 
@@ -200,3 +206,5 @@ from fn.__code__
 
 bar()
 #print(frame_variables(frame))
+
+print(getsource(walk))
