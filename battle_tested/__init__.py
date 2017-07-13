@@ -582,8 +582,9 @@ Parameters:
             battle_tested._results[fn]['iffy_input_types'] = set(i for i in battle_tested._results[fn]['crash_input_types'] if i in battle_tested._results[fn]['successful_input_types'])
             # clean up the unique_crashes section
             battle_tested._results[fn]['unique_crashes'] = tuple(battle_tested._results[fn]['unique_crashes'].values())
+            # remove duplicate successful input types
+            battle_tested._results[fn]['successful_input_types'] = set(battle_tested._results[fn]['successful_input_types'])
             print('total tests: {}'.format(next(count)))
-
         if keep_testing:
             #examples_that_break = ('examples that break' if len(battle_tested.crash_map)>1 else 'example that broke')
             #print('found {} {} {}()'.format(len(battle_tested.crash_map),examples_that_break,fn.__name__))
