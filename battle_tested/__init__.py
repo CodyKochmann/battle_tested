@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-07-03 10:18:26
+# @Last Modified time: 2017-07-10 15:12:58
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -38,6 +38,7 @@ import traceback
 import sys
 from time import time
 from stricttuple import stricttuple
+from collections import deque
 
 __all__ = 'battle_tested', 'fuzz', 'disable_traceback', 'enable_traceback', 'garbage', 'crash_map', 'success_map', 'results', 'stats', 'print_stats'
 
@@ -497,7 +498,7 @@ Parameters:
         ipython_tools.silence_traceback()
 
         battle_tested._results[fn] = {
-            'successful_input_types':set(),
+            'successful_input_types':deque(maxlen=500),
             'crash_input_types':set(),
             'iffy_input_types':set(), # types that both succeed and crash the function
             'output_types':set(),
@@ -520,7 +521,14 @@ Parameters:
             next(count)
             try:
                 out = fn(*arg_list)
-                battle_tested._results[fn]['successful_input_types'].add(tuple(type(i) for i in arg_list))
+                # the rest of this block is handling logging a success
+                input_types = tuple(type(i) for i in arg_list)
+                # if the input types have caused a crash before, add them to iffy_types
+                if input_types in battle_tested._results[fn]['crash_input_types']:
+                    battle_tested._results[fn]['iffy_input_types'].add(input_types)
+                # add the input types to the successful collection
+                battle_tested._results[fn]['successful_input_types'].append(input_types)
+                # add the output type to the output collection
                 battle_tested._results[fn]['output_types'].add(type(out))
                 battle_tested.success_map.add(tuple(type(i) for i in arg_list))
             except Exception as ex:
@@ -533,9 +541,15 @@ Parameters:
                 else:
                     tb = tb_steps_full[-1]
 
+                ex_message = ''
+                if hasattr(ex, 'args') and len(ex.args)>0:
+                    ex_message = ex.args[0]
+                elif hasattr(ex, 'message') and len(ex.message)>0:
+                    ex_message = ex.message
+
                 error_string = format_error_message(
                     fn.__name__,
-                    '{} - {}'.format(type(ex).__name__,(ex.message if 'message' in dir(ex) else ex.args[0])),
+                    '{} - {}'.format(type(ex).__name__,ex_message),
                     tb,
                     (arg_list if len(arg_list)!=1 else '({})'.format(repr(arg_list[0])))
                 )
@@ -543,11 +557,11 @@ Parameters:
                 battle_tested._results[fn]['crash_input_types'].add(tuple(type(i) for i in arg_list))
 
                 if keep_testing:
-                    tb = '{}{}'.format(traceback_text(),ex.args[0])
-                    battle_tested.crash_map[tb]={'type':type(ex),'message':ex.args[0],'args':arg_list,'arg_types':tuple(type(i) for i in arg_list)}
+                    tb = '{}{}'.format(traceback_text(),ex_message)
+                    battle_tested.crash_map[tb]={'type':type(ex),'message':ex_message,'args':arg_list,'arg_types':tuple(type(i) for i in arg_list)}
                     battle_tested._results[fn]['unique_crashes'][tb]=battle_tested.Crash(
                         err_type=type(ex),
-                        message=repr(ex.args[0]),
+                        message=repr(ex_message),
                         args=arg_list,
                         arg_types=tuple(type(i) for i in arg_list),
                         trace=tb
@@ -648,7 +662,7 @@ if __name__ == '__main__':
         return input_arg+1
 
     #fuzz(lambda i:i+1)
-    fuzz(sample3, seconds=2, keep_testing=True)
+    fuzz(sample3, seconds=120, keep_testing=True)
     crash_map()
     success_map()
 
@@ -671,6 +685,6 @@ if __name__ == '__main__':
     from pprint import pprint
 
     sample3_results = battle_tested.results(sample3)
-    pprint(sample3_results)
+    #pprint(sample3_results)
 
     print('finished running battle_tested.py')
