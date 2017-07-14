@@ -390,6 +390,7 @@ Or:
     # results[my_function]['unique_crashes']=[list_of_crashes]
     # results[my_function]['successes']=[list_of_successes]
 
+    # safe container that holds crash results
     Crash = stricttuple(
         'Crash',
         arg_types = (
@@ -411,6 +412,38 @@ Or:
         )
     )
 
+    # safe container that holds test results
+    Result = stricttuple(
+        'Result',
+        successful_input_types = (
+            lambda successful_input_types: type(successful_input_types)==tuple,
+            lambda successful_input_types: all(type(i)==tuple for i in successful_input_types),
+            lambda successful_input_types: all(all(isinstance(x,type) for x in i) for i in successful_input_types)
+        ),
+        crash_input_types = (
+            lambda crash_input_types: type(crash_input_types)==tuple,
+            lambda crash_input_types: all(type(i)==tuple for i in crash_input_types),
+            lambda crash_input_types: all(all(isinstance(x,type) for x in i) for i in crash_input_types)
+        ),
+        iffy_input_types = (
+            lambda iffy_input_types: type(iffy_input_types)==tuple,
+            lambda iffy_input_types: all(type(i)==tuple for i in iffy_input_types),
+            lambda iffy_input_types: all(all(isinstance(x,type) for x in i) for i in iffy_input_types)
+        ),
+        output_types = (
+            lambda output_types: type(output_types)==tuple,
+            lambda output_types: all(isinstance(i, type) for i in output_types),
+        ),
+        exception_types = (
+            lambda exception_types: type(exception_types)==tuple,
+            lambda exception_types: all(isinstance(i,Exception) or issubclass(i,Exception) for i in exception_types),
+        ),
+        unique_crashes = (
+            lambda unique_crashes: type(unique_crashes)==tuple,
+            #lambda unique_crashes: all(type(i)==battle_tested.Crash for i in unique_crashes)
+        ),
+    )
+
     @staticmethod
     def results(fn):
         '''returns the collected results of the given function'''
@@ -421,13 +454,15 @@ Or:
     def stats(fn):
         ''' returns the stats found when testing a function '''
         results = battle_tested.results(fn)
-        return {k:len(results[k]) for k in results}
+
+        return {k:len(getattr(results, k)) for k in results._fields}
 
     @staticmethod
     def print_stats(fn):
         ''' prints the stats on a tested function '''
         stats = battle_tested.stats(fn)
-        print('fuzzing {}() found:'.format(fn.__name__ if '__name__' in dir(fn) else fn))
+        fn_name = fn.__name__ if '__name__' in dir(fn) else fn
+        print('fuzzing {}() found:'.format(fn_name))
         longest_key = max(len(k) for k in stats)
         for k in sorted(stats.keys()):
             print('  {key:{longest_key}} - {cnt}'.format(
@@ -531,7 +566,7 @@ Parameters:
                 # add the output type to the output collection
                 battle_tested._results[fn]['output_types'].add(type(out))
                 battle_tested.success_map.add(tuple(type(i) for i in arg_list))
-            except Exception as ex:
+            except BaseException as ex:
                 # get the step where the code broke
                 tb_steps_full = [i for i in traceback_steps()]
                 tb_steps_with_func_name = [i for i in tb_steps_full if i.splitlines()[0].endswith(fn.__name__)]
@@ -578,12 +613,24 @@ Parameters:
         finally:
             interval.stop()
             gc_interval.stop()
-            # find the types that both crashed and succeeded
-            battle_tested._results[fn]['iffy_input_types'] = set(i for i in battle_tested._results[fn]['crash_input_types'] if i in battle_tested._results[fn]['successful_input_types'])
-            # clean up the unique_crashes section
-            battle_tested._results[fn]['unique_crashes'] = tuple(battle_tested._results[fn]['unique_crashes'].values())
-            # remove duplicate successful input types
-            battle_tested._results[fn]['successful_input_types'] = set(battle_tested._results[fn]['successful_input_types'])
+
+            results_dict = battle_tested._results[fn]
+            results_dict['iffy_input_types'] = set(i for i in results_dict['crash_input_types'] if i in results_dict['successful_input_types'])
+
+            battle_tested._results[fn] = battle_tested.Result(
+                successful_input_types = tuple(set(i for i in results_dict['successful_input_types'] if i not in results_dict['iffy_input_types'] and i not in results_dict['crash_input_types'])),
+                crash_input_types = tuple(results_dict['crash_input_types']),
+                iffy_input_types = tuple(results_dict['iffy_input_types']),
+                output_types = tuple(results_dict['output_types']),
+                exception_types = tuple(results_dict['exception_types']),
+                unique_crashes = tuple(results_dict['unique_crashes'].values()),
+            )
+            ## find the types that both crashed and succeeded
+            #results_dict['iffy_input_types'] = set(i for i in results_dict['crash_input_types'] if i in results_dict['successful_input_types'])
+            ## clean up the unique_crashes section
+            #results_dict['unique_crashes'] = tuple(results_dict['unique_crashes'].values())
+            ## remove duplicate successful input types
+            #results_dict['successful_input_types'] = set(results_dict['successful_input_types'])
             print('total tests: {}'.format(next(count)))
         if keep_testing:
             #examples_that_break = ('examples that break' if len(battle_tested.crash_map)>1 else 'example that broke')
@@ -591,18 +638,20 @@ Parameters:
             battle_tested.print_stats(fn)
             #print('run crash_map() or success_map() to access the test results')
         else:
-            print('battle_tested: no falsifying examples found')
+            print('battle_tested: no falsifying examples found\nyour codes may be perfect :)')
+        return battle_tested._results[fn]
+
 
     def __call__(self, fn):
         """ runs before the decorated function is called """
         self.__verify_function__(fn)
 
-        if not self.tested:
+        if fn not in battle_tested._results:
             # only test the first time this function is called
             if not ('skip_test' in self.kwargs and self.kwargs['skip_test']):
                 # skip the test if it is explicitly turned off
                 self.fuzz(fn, seconds=self.seconds, max_tests=self.max_tests, verbose=self.verbose)
-            self.tested = True
+            #self.tested = True
 
         def wrapper(*args, **kwargs):
             try:
@@ -654,6 +703,9 @@ if __name__ == '__main__':
     print(sample('i'))
     print(sample2('a','b',2,4))
 
+    # prove that successes of any type are possible
+    fuzz(lambda i:i , keep_testing=True, seconds=10)
+
     #======================================
     #  Examples using the function syntax
     #======================================
@@ -686,6 +738,8 @@ if __name__ == '__main__':
     from pprint import pprint
 
     sample3_results = battle_tested.results(sample3)
+    print(sample3_results.exception_types)
+
     #pprint(sample3_results)
 
     print('finished running battle_tested.py')
