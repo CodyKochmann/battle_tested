@@ -7,17 +7,36 @@
 import sys
 from inspect import currentframe
 
-def is_module(module):
-    return type(module) == type(sys)
+import itertools
+import requests
+import numpy
+import scipy
+import django
+import logging
+import os
+import hypothesis
+import functools
+
+def is_module(module, mod_type=type(sys)):
+    """ returns true if the input is a module """
+    return type(module) == mod_type
+
+def is_type(t):
+    """ returns true if input is a constructible type """
+    return isinstance(t, type) and \
+        hasattr(t, '__init__') and \
+        callable(t.__init__) and \
+        (not isinstance(t, BaseException)) and \
+        (not repr(t).split("'")[0].startswith('_'))
 
 def module_types(module):
     """ returns all types from the given module """
     #assert is_module(module), 'needed module, got {}'.format(type(module))
     if is_module(module) and hasattr(module, '__dict__'):
         d = module.__dict__
-        types = (type(d[i]) for i in d if type(d[i])!=None)
-        types = (i for i in types if not i.__name__.startswith('builtin'))
-        types = (i for i in types if '__init__' in dir(i))
+        types = (d[i] if is_type(d[i]) else type(d[i]) for i in d if type(d[i])!=None)
+        #types = (i for i in types if not i.__name__.startswith('builtin'))
+        types = (i for i in types if hasattr(i, '__init__'))
         return set(types)
     else:
         return set()
@@ -31,23 +50,52 @@ def nested_modules(module):
         return set()
 
 class collection():
-    modules = set()
-    modules.add(sys.modules['__main__'])
-    types = set()
+    modules = set() # where collected modules are stored
+    modules.add(sys.modules['__main__']) # explicitly add __main__ module
+    types = set() # where collected types are stored
+
+    # any types with a lowercased __repr__ containing any of these are taken out
+    # of the collected types due to the danger in fuzzing their constructors.
+    blacklist_terms = 'sre.', 'inspect', 'abc', 'os.', 'sys.', 'io.', 'weak'
+    blacklist_terms+= 'thread', 'process', 'frozen', 'import', 'eval', 'exec'
+    blacklist_terms+= 'exit', 'error', 'excep', 'ctype', 'buffer', 'operator',
+    blacklist_terms+= 'caller', 'pickle', 'file', 'warning', 'pipe', 'socket'
+    blacklist_terms+= 'code', 'fail', 'battle_tested', 'handle', 'event', 'ast.'
+
+    def injest(arg,types=types,modules=modules,blacklist_terms=blacklist_terms):
+        """ injests modules and types and stores them """
+        try:
+            #print(arg)
+            if is_module(arg):
+                modules.add(arg)
+            elif is_type(arg):
+                    types.add(arg)
+            else:
+                if is_type(type(arg)):
+                    types.add(type(arg))
+        except:
+            pass
+    # add the top level modules from the frame and sys.modules
     for i in (sys.modules, currentframe().f_globals, currentframe().f_locals):
-        for v in i.values():
-            try:
-                #print(v)
-                if type(v)==type(sys):
-                    modules.add(v)
-                elif isinstance(type(v), type):
-                    types.add(v)
-            except:
-                pass
+        map(injest, i.values())
+    # _previous_len = 0
+    # while _previous_len!=len(modules):
+    #     _previous_len = len(modules)
+    for i in range(1):
+        for m in modules:
+            map(injest, m.__dict__.values())
+
     generated_functions = set()
 
-out = set()
+blacklisted = lambda t:any(i in repr(t).lower() for i in collection.blacklist_terms)
+print('before',len(collection.types))
+collection.types = set(i for i in collection.types if not blacklisted(i))
+print('after',len(collection.types))
 
+for i in collection.types:
+    print(i)
+'''
+out = set()
 for i in collection.modules:
     for x in i.__dict__.values():
         if isinstance(type(x), type) and 'built-in' not in repr(x):
@@ -58,6 +106,10 @@ for i in collection.modules:
 out = sorted(out)
 for i in out:
     print(i)
+'''
+# for i in collection.types:
+#     print(i)
+print(len(collection.types))
 exit()
 
 
@@ -90,6 +142,9 @@ def find_working_args(fn):
                     yield i
             except:
                 pass
+
+
+
 
 from boltons.funcutils import FunctionBuilder
 
