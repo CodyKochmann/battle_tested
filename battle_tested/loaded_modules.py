@@ -95,31 +95,41 @@ print('after',len(collection.types))
 for i in collection.types:
     print(i)
 
+from battle_tested import garbage
 
-def find_working_args(fn):
+def find_working_args(fn, garbage=garbage):
     ''' returns how many arguments work with the function '''
-    from battle_tested import garbage
     working_args = set()
-    for i in range(8):
-        for attempt in range(8):
-            if i in working_args or (i>3 and len(working_args)/i<0.5):
-                break
-            try:
-                    fn(*(garbage.example() for arg in range(i)))
-                    working_args.add(i)
-                    yield i
-            except:
+    for i in range(6):
+        for attempt in range(20):
+            if i in working_args: # or (i>3 and len(working_args)/i<0.5):
                 pass
+            else:
+                try:
+                    out = None
+                    out=fn(*(garbage.example() for arg in range(i)))
+                    if out != None:
+                        working_args.add(i)
+                        yield i
+                except Exception as e:
+                    print(e)
+                    pass
 
 
 
 
 from boltons.funcutils import FunctionBuilder
-
+from re import findall
+def legal_fn_name_chars(i):
+    ''' returns the letters and underscores found in the input '''
+    return '_'.join(findall(r'[a-zA-Z\_]{1,}', i))
 def build_test_function(fn, args=0):
     ''' returns a test function with the given number of arguments '''
-
-    name='{}_{}_tester_{}'.format(fn.__module__,fn.__name__,args)
+    name='{}_{}_tester_{}'.format(
+        legal_fn_name_chars(fn.__module__),
+        legal_fn_name_chars(fn.__name__),
+        args
+    )
     function_body='import {};from battle_tested import garbage;return {}.{}({})'.format(
         fn.__module__,
         fn.__module__,
@@ -135,15 +145,15 @@ g = (repr(i) for i in collection.types)
 for t in sorted(g):
     print(t)
 
-exit('the code below is dangerous')
-
 for t in collection.types:
-    for wa in find_working_args(t):
-        print(t,wa)
+    print('trying:',t)
+    for wa in find_working_args(t.__init__):
         collection.generated_functions.add(build_test_function(t,wa))
+        print('total built:',len(collection.generated_functions),'type:',t,'args:',wa)
 
+print('total built:',len(collection.generated_functions))
 exit()
-'''
+"""
 
 for t in collection.types:
     print("{:30}{:30}{}".format(t.__module__,t.__name__,t.__init__))
