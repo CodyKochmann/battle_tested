@@ -94,38 +94,6 @@ print('after',len(collection.types))
 
 for i in collection.types:
     print(i)
-'''
-out = set()
-for i in collection.modules:
-    for x in i.__dict__.values():
-        if isinstance(type(x), type) and 'built-in' not in repr(x):
-            if type(x) == type:
-                out.add(x)
-            else:
-                out.add(type(x))
-out = sorted(out)
-for i in out:
-    print(i)
-'''
-# for i in collection.types:
-#     print(i)
-print(len(collection.types))
-exit()
-
-
-
-
-
-previous_len=-1
-while len(collection.modules) != previous_len:
-    previous_len = len(collection.modules)
-    for t in list(collection.modules):
-        {collection.modules.add(m) for m in nested_modules(t)}
-        {collection.types.add(m) for m in module_types(t)}
-    collection.modules = collection.modules
-
-collection.types = (i for i in collection.types if not any(b in repr(i) for b in ('os.', 'sys.', 'abc.', 'thread','process', '_frozen_importlib_external', '_frozen_importlib')))
-collection.types = set(i for i in collection.types if hasattr(i,'__init__'))
 
 
 def find_working_args(fn):
@@ -167,8 +135,6 @@ g = (repr(i) for i in collection.types)
 for t in sorted(g):
     print(t)
 
-
-"""
 exit('the code below is dangerous')
 
 for t in collection.types:
@@ -176,6 +142,8 @@ for t in collection.types:
         print(t,wa)
         collection.generated_functions.add(build_test_function(t,wa))
 
+exit()
+'''
 
 for t in collection.types:
     print("{:30}{:30}{}".format(t.__module__,t.__name__,t.__init__))
