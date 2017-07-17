@@ -542,10 +542,8 @@ Parameters:
         }
 
         interval = IntervalTimer(0.25, lambda:print_stats(next(count),next(timer),average))
-        Timer(0.1,lambda:interval.start()).start()
 
         gc_interval = IntervalTimer(3, gc)
-        gc_interval.start()
 
         @settings(timeout=seconds, max_examples=max_tests, verbosity=(Verbosity.verbose if verbose else Verbosity.normal))
         @given(strategy)
@@ -566,7 +564,7 @@ Parameters:
                 # add the output type to the output collection
                 battle_tested._results[fn]['output_types'].add(type(out))
                 battle_tested.success_map.add(tuple(type(i) for i in arg_list))
-            except BaseException as ex:
+            except Exception as ex:
                 # get the step where the code broke
                 tb_steps_full = [i for i in traceback_steps()]
                 tb_steps_with_func_name = [i for i in tb_steps_full if i.splitlines()[0].endswith(fn.__name__)]
@@ -609,6 +607,8 @@ Parameters:
 
         # run the test
         try:
+            gc_interval.start()
+            Timer(0.26,lambda:interval.start()).start()
             fuzz()
         finally:
             interval.stop()
@@ -718,6 +718,8 @@ if __name__ == '__main__':
     fuzz(sample3, seconds=120, keep_testing=True)
     crash_map()
     success_map()
+
+    fuzz(lambda i:i)
 
     #======================================
     #   example harness
