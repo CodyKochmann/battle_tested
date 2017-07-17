@@ -7,15 +7,7 @@
 import sys
 from inspect import currentframe
 
-import itertools
-import requests
-import numpy
-import scipy
-import django
-import logging
-import os
-import hypothesis
-import functools
+import ipaddress
 
 def is_module(module, mod_type=type(sys)):
     """ returns true if the input is a module """
@@ -53,6 +45,7 @@ class collection():
     modules = set() # where collected modules are stored
     modules.add(sys.modules['__main__']) # explicitly add __main__ module
     types = set() # where collected types are stored
+    variables = set() # where collected variables are stored
 
     # any types with a lowercased __repr__ containing any of these are taken out
     # of the collected types due to the danger in fuzzing their constructors.
@@ -62,10 +55,10 @@ class collection():
     blacklist_terms+= 'caller', 'pickle', 'file', 'warning', 'pipe', 'socket'
     blacklist_terms+= 'code', 'fail', 'battle_tested', 'handle', 'event', 'ast.'
 
-    def injest(arg,types=types,modules=modules,blacklist_terms=blacklist_terms):
+    def injest(arg,types=types,modules=modules,blacklist_terms=blacklist_terms,variables=variables):
         """ injests modules and types and stores them """
         try:
-            #print(arg)
+            variables.add(arg)
             if is_module(arg):
                 modules.add(arg)
             elif is_type(arg):
@@ -88,12 +81,34 @@ class collection():
     generated_functions = set()
 
 blacklisted = lambda t:any(i in repr(t).lower() for i in collection.blacklist_terms)
-print('before',len(collection.types))
+#print('before',len(collection.types))
 collection.types = set(i for i in collection.types if not blacklisted(i))
-print('after',len(collection.types))
+#print('after',len(collection.types))
 
-for i in collection.types:
-    print(i)
+#for i in collection.types:
+#    print(i)
+
+print(len(collection.variables))
+#for i in collection.variables:
+#    print(type(i),i)
+#    print('')
+
+# def endless_generator():
+#     while 1:
+#         for i in collection.variables:
+#             yield i
+
+# from hypothesis import strategies as st
+
+# g = endless_generator()
+# furniture = g.send
+# violent_furniture = st.none().map(furniture)
+
+
+#stv4 = st.integers(min_value=0, max_value=2**32-1).map(IPv4Address)
+#for i in range(64):
+#    print(violent_furniture.example())
+
 
 from battle_tested import garbage
 
@@ -148,7 +163,7 @@ for t in sorted(g):
 for t in collection.types:
     print('trying:',t)
     for wa in find_working_args(t.__init__):
-        collection.generated_functions.add(build_test_function(t,wa))
+        collection.generated_functions.add(build_test_function(lambda *i:t.__init__(t(),*i),wa))
         print('total built:',len(collection.generated_functions),'type:',t,'args:',wa)
 
 print('total built:',len(collection.generated_functions))
