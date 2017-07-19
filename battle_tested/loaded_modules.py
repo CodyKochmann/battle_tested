@@ -9,11 +9,15 @@ from inspect import currentframe
 
 import ipaddress
 
+from battle_tested import garbage, battle_tested
 
+
+@battle_tested(max_tests=50)
 def is_module(module, mod_type=type(sys)):
     """ returns true if the input is a module """
     return type(module) == mod_type
 
+@battle_tested(max_tests=50)
 def is_type(t):
     """ returns true if input is a constructible type """
     return isinstance(t, type) and \
@@ -22,6 +26,7 @@ def is_type(t):
         (not isinstance(t, BaseException)) and \
         (not repr(t).split("'")[0].startswith('_'))
 
+@battle_tested(max_tests=50)
 def module_types(module):
     """ returns all types from the given module """
     #assert is_module(module), 'needed module, got {}'.format(type(module))
@@ -34,6 +39,7 @@ def module_types(module):
     else:
         return set()
 
+@battle_tested(max_tests=50)
 def nested_modules(module):
     """ returns a set of nested modules from the given module """
     if is_module(module) and hasattr(module, '__dict__'):
@@ -83,67 +89,49 @@ class collection():
 
     generated_functions = set()
 
-
+@battle_tested(max_tests=50)
 def blacklisted(t):
     return any((i in repr(t).lower()) for i in collection.blacklist_terms)
+
 
 #print('before',len(collection.types))
 collection.types = set(i for i in collection.types if not blacklisted(i))
 #print('after',len(collection.types))
 
-#for i in collection.types:
-#    print(i)
-
 print(len(collection.variables))
-#for i in collection.variables:
-#    print(type(i),i)
-#    print('')
 
-# def endless_generator():
-#     while 1:
-#         for i in collection.variables:
-#             yield i
-
-# from hypothesis import strategies as st
-
-# g = endless_generator()
-# furniture = g.send
-# violent_furniture = st.none().map(furniture)
-
-
-#stv4 = st.integers(min_value=0, max_value=2**32-1).map(IPv4Address)
-#for i in range(64):
-#    print(violent_furniture.example())
-
-
-from battle_tested import garbage
-
+@battle_tested(max_tests=50)
 def find_working_args(fn, garbage=garbage):
     ''' returns how many arguments work with the function '''
-    working_args = set()
-    for i in range(6):
-        for attempt in range(20):
-            if i in working_args: # or (i>3 and len(working_args)/i<0.5):
-                pass
-            else:
-                try:
-                    out = None
-                    out=fn(*(garbage.example() for arg in range(i)))
-                    if out != None:
-                        working_args.add(i)
-                        yield i
-                except Exception as e:
-                    #print(e)
+    if callable(fn):
+        working_args = set()
+        for i in range(6):
+            for attempt in range(20):
+                if i in working_args: # or (i>3 and len(working_args)/i<0.5):
                     pass
-
-
-
+                else:
+                    try:
+                        out = None
+                        out=fn(*(garbage.example() for arg in range(i)))
+                        if out != None:
+                            working_args.add(i)
+                            yield i
+                    except Exception as e:
+                        pass
 
 from boltons.funcutils import FunctionBuilder
 from re import findall
+@battle_tested()
 def legal_fn_name_chars(i):
     ''' returns the letters and underscores found in the input '''
-    return '_'.join(findall(r'[a-zA-Z\_]{1,}', i))
+    if type(i)==str:
+        return '_'.join(findall(r'[a-zA-Z\_]{1,}', i))
+    else:
+        return ''
+exit()
+
+
+
 def build_test_function(fn, args=0):
     ''' returns a test function with the given number of arguments '''
     name='{}_{}_tester'.format(
