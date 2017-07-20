@@ -31,6 +31,7 @@ Or:
 
 from __future__ import print_function
 from functools import wraps
+from prettytable import PrettyTable
 import logging
 from hypothesis import given, strategies as st, settings, Verbosity
 from gc import collect as gc
@@ -69,6 +70,37 @@ garbage=st.one_of(*garbage)
 
 def is_py3():
     return sys.version_info >= (3, 0)
+
+class UniqueCrashContainer(tuple):
+    ''' a pretty printable container for crashes '''
+    def __repr__(self):
+        table = PrettyTable(('exception type','arg types','location','crash message'), sortby='exception type')
+        table.align["exception type"] = "l"
+        table.align["arg types"] = "l"
+        table.align["location"] = "l"
+        table.align["crash message"] = "l"
+        for i in self:
+            table.add_row((repr(i.err_type),repr(tuple(i.__name__ for i in i.arg_types)),[x for x in i.trace.split(', ') if x.startswith('line ')][-1],i.message))
+        return table.get_string()
+
+class PrettyTuple(tuple):
+    ''' tuples with better pretty printing '''
+    def __repr__(self):
+        if len(self) > 0:
+            table = PrettyTable(None)
+            for i in self:
+                if isinstance(i, tuple):
+                    table.add_row(i)
+                else:
+                    if isinstance(i, type):
+                        if hasattr(i, '__name__'):
+                            i=i.__name__
+                        else:
+                            i=repr(i)
+                    table.add_row((i,))
+            return '\n'.join(table.get_string().splitlines()[2:])
+        else:
+            return str(self)
 
 class tb_controls():
     old_excepthook = sys.excepthook
@@ -427,31 +459,30 @@ Or:
     Result = stricttuple(
         'Result',
         successful_input_types = (
-            lambda successful_input_types: type(successful_input_types)==tuple,
+            lambda successful_input_types: type(successful_input_types)==PrettyTuple,
             lambda successful_input_types: all(type(i)==tuple for i in successful_input_types),
             lambda successful_input_types: all(all(isinstance(x,type) for x in i) for i in successful_input_types)
         ),
         crash_input_types = (
-            lambda crash_input_types: type(crash_input_types)==tuple,
+            lambda crash_input_types: type(crash_input_types)==PrettyTuple,
             lambda crash_input_types: all(type(i)==tuple for i in crash_input_types),
             lambda crash_input_types: all(all(isinstance(x,type) for x in i) for i in crash_input_types)
         ),
         iffy_input_types = (
-            lambda iffy_input_types: type(iffy_input_types)==tuple,
+            lambda iffy_input_types: type(iffy_input_types)==PrettyTuple,
             lambda iffy_input_types: all(type(i)==tuple for i in iffy_input_types),
             lambda iffy_input_types: all(all(isinstance(x,type) for x in i) for i in iffy_input_types)
         ),
         output_types = (
-            lambda output_types: type(output_types)==tuple,
+            lambda output_types: type(output_types)==PrettyTuple,
             lambda output_types: all(isinstance(i, type) for i in output_types),
         ),
         exception_types = (
-            lambda exception_types: type(exception_types)==tuple,
+            lambda exception_types: type(exception_types)==PrettyTuple,
             lambda exception_types: all(isinstance(i,Exception) or issubclass(i,Exception) for i in exception_types),
         ),
         unique_crashes = (
-            lambda unique_crashes: type(unique_crashes)==tuple,
-            #lambda unique_crashes: all(type(i)==battle_tested.Crash for i in unique_crashes)
+            lambda unique_crashes: type(unique_crashes)==UniqueCrashContainer,
         ),
     )
 
@@ -474,12 +505,10 @@ Or:
         stats = battle_tested.stats(fn)
         fn_name = fn.__name__ if '__name__' in dir(fn) else fn
         print('fuzzing {}() found:'.format(fn_name))
-        longest_key = max(len(k) for k in stats)
+        t=PrettyTable(None)
         for k in sorted(stats.keys()):
-            print('  {key:{longest_key}} - {cnt}'.format(
-                key=k,
-                longest_key=longest_key,
-                cnt=stats[k]))
+            t.add_row((k,stats[k]))
+        print('\n'.join(t.get_string().splitlines()[2:]))
 
     # these two are here so the maps can have doc strings
     class _crash_map(dict):
@@ -630,12 +659,12 @@ Parameters:
             results_dict['iffy_input_types'] = set(i for i in results_dict['crash_input_types'] if i in results_dict['successful_input_types'])
 
             battle_tested._results[fn] = battle_tested.Result(
-                successful_input_types = tuple(set(i for i in results_dict['successful_input_types'] if i not in results_dict['iffy_input_types'] and i not in results_dict['crash_input_types'])),
-                crash_input_types = tuple(results_dict['crash_input_types']),
-                iffy_input_types = tuple(results_dict['iffy_input_types']),
-                output_types = tuple(results_dict['output_types']),
-                exception_types = tuple(results_dict['exception_types']),
-                unique_crashes = tuple(results_dict['unique_crashes'].values()),
+                successful_input_types = PrettyTuple(set(i for i in results_dict['successful_input_types'] if i not in results_dict['iffy_input_types'] and i not in results_dict['crash_input_types'])),
+                crash_input_types = PrettyTuple(results_dict['crash_input_types']),
+                iffy_input_types = PrettyTuple(results_dict['iffy_input_types']),
+                output_types = PrettyTuple(results_dict['output_types']),
+                exception_types = PrettyTuple(results_dict['exception_types']),
+                unique_crashes = UniqueCrashContainer(results_dict['unique_crashes'].values()),
             )
             ## find the types that both crashed and succeeded
             #results_dict['iffy_input_types'] = set(i for i in results_dict['crash_input_types'] if i in results_dict['successful_input_types'])
@@ -650,7 +679,7 @@ Parameters:
             battle_tested.print_stats(fn)
             #print('run crash_map() or success_map() to access the test results')
         else:
-            print('battle_tested: no falsifying examples found\nyour codes may be perfect :)')
+            print('battle_tested: no falsifying examples found')
         return battle_tested._results[fn]
 
 
