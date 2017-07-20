@@ -226,8 +226,11 @@ class generators(object):
         "generator that holds a sum"
         c = 0
         while 1:
-            yield c
-            c += 1
+            i = yield c
+            if i is None:
+                c += 1
+            else:
+                c += i
 
     @staticmethod
     @started
@@ -549,7 +552,7 @@ Parameters:
             'unique_crashes':dict()
         }
 
-        interval = IntervalTimer(0.25, lambda:print_stats(next(count),next(timer),average))
+        interval = IntervalTimer(0.25, lambda:print_stats(count.send(0),next(timer),average))
 
         gc_interval = IntervalTimer(3, gc)
 
@@ -640,7 +643,7 @@ Parameters:
             #results_dict['unique_crashes'] = tuple(results_dict['unique_crashes'].values())
             ## remove duplicate successful input types
             #results_dict['successful_input_types'] = set(results_dict['successful_input_types'])
-            print('total tests: {}'.format(next(count)))
+            print('total tests: {}'.format(count.send(0)))
         if keep_testing:
             #examples_that_break = ('examples that break' if len(battle_tested.crash_map)>1 else 'example that broke')
             #print('found {} {} {}()'.format(len(battle_tested.crash_map),examples_that_break,fn.__name__))
