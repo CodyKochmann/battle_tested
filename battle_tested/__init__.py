@@ -104,6 +104,14 @@ def disable_traceback():
     """ enables tracebacks to be added to exception raises """
     tb_controls.disable_traceback()
 
+def traceback_file_lines(trace_text=None):
+    """ this returns a list of lines that start with file in the given traceback
+        usage:
+            traceback_steps(traceback.format_exc())
+    """
+    # split the text into traceback steps
+    return [i for i in trace_text.splitlines() if i.startswith('  File "') and '", line' in i]
+
 def traceback_steps(trace_text=None):
     """ this generates the steps in a traceback
         usage:
@@ -590,14 +598,15 @@ Parameters:
                 battle_tested._results[fn]['crash_input_types'].add(tuple(type(i) for i in arg_list))
 
                 if keep_testing:
-                    tb = '{}{}'.format(traceback_text(),ex_message)
+                    tb_text = traceback_text()
+                    tb = '{}{}'.format(traceback_file_lines(tb_text),repr(type(ex)))
                     battle_tested.crash_map[tb]={'type':type(ex),'message':ex_message,'args':arg_list,'arg_types':tuple(type(i) for i in arg_list)}
                     battle_tested._results[fn]['unique_crashes'][tb]=battle_tested.Crash(
                         err_type=type(ex),
                         message=repr(ex_message),
                         args=arg_list,
                         arg_types=tuple(type(i) for i in arg_list),
-                        trace=tb
+                        trace=tb_text
                     )
                     battle_tested._results[fn]['exception_types'].add(type(ex))
                 else:
@@ -741,6 +750,9 @@ if __name__ == '__main__':
 
     sample3_results = battle_tested.results(sample3)
     print(sample3_results.exception_types)
+
+    print('fuzzing fuzz')
+    fuzz(fuzz,keep_testing=True,seconds=10)
 
     #pprint(sample3_results)
 
