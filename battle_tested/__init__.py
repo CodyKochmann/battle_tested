@@ -100,7 +100,7 @@ class PrettyTuple(tuple):
                     table.add_row((i,))
             return '\n'.join(table.get_string().splitlines()[2:])
         else:
-            return str(self)
+            return '()'
 
 class tb_controls():
     old_excepthook = sys.excepthook
@@ -519,7 +519,7 @@ Or:
     success_map = _success_map()
 
     @staticmethod
-    def fuzz(fn, seconds=2, max_tests=1000000, verbose=False, keep_testing=False):
+    def fuzz(fn, seconds=2, max_tests=1000000, verbose=False, keep_testing=True):
         """
 
 fuzz - battle_tested's primary weapon for testing functions.
