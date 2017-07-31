@@ -638,7 +638,7 @@ Parameters:
                         message=repr(ex_message),
                         args=arg_list,
                         arg_types=tuple(type(i) for i in arg_list),
-                        trace=tb_text
+                        trace=str(tb_text)
                     )
                     battle_tested._results[fn]['exception_types'].add(type(ex))
                 else:
