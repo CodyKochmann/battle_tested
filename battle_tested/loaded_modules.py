@@ -11,7 +11,6 @@ import ipaddress
 
 from battle_tested import garbage, battle_tested
 
-
 #@battle_tested(max_tests=50)
 def is_module(module, mod_type=type(sys)):
     """ returns true if the input is a module """
@@ -61,7 +60,12 @@ class collection():
     blacklist_terms+= 'exit', 'error', 'excep', 'ctype', 'buffer', 'operator',
     blacklist_terms+= 'caller', 'pickle', 'file', 'warning', 'pipe', 'socket'
     blacklist_terms+= 'code', 'fail', 'battle_tested', 'handle', 'event', 'ast.'
-    blacklist_terms+= 'unit', 'test', 'python', 'site', 'nose', 'hypothesis', 'pdb'
+    blacklist_terms+= 'unit', 'test', 'python', 'site', 'nose', 'hypothesis'
+    blacklist_terms+= 'pdb', 'pkg', 'resource', 'format', 'incomplete', 'path'
+    blacklist_terms+= 'method', 'system', 'memory', 'arg', 'unknown', 'context'
+    blacklist_terms+= 'interrupt', 'adapt', 'overflow', 'underflow', 'illegal'
+    blacklist_terms+= 'context', 'lock', '._', 'undefined', 'invalid'
+    blacklist_terms+= 'operation', 'logging'
 
     def injest(arg,types=types,modules=modules,blacklist_terms=blacklist_terms,variables=variables):
         """ injests modules and types and stores them """
@@ -94,10 +98,27 @@ class collection():
 def blacklisted(t):
     return any((bad_word in repr(t).lower()) for bad_word in collection.blacklist_terms)
 
+from collections import deque
+def window(iterable, size):
+    assert hasattr(iterable, '__iter__') and type(size)==int, 'bad input for window()'
+    d = deque(maxlen=size)
+    while len(d)<size:
+        d.append(iterable)
+    for i in iterable:
+        yield tuple(d)
+        d.append(i)
 
 #print('before',len(collection.types))
 collection.types = set(i for i in collection.types if not blacklisted(i))
 #print('after',len(collection.types))
+
+# pregenerate the values needed to test the constructors
+collection.pregenerated_values = []
+while len(collection.pregenerated_values) < 30:
+    try:
+        collection.pregenerated_values.append(garbage.example())
+    except:
+        pass
 
 print(len(collection.variables))
 
@@ -106,19 +127,19 @@ def find_working_args(fn, garbage=garbage):
     ''' returns how many arguments work with the function '''
     if callable(fn):
         working_args = set()
-        for i in range(3): # i is number of arguments to try
-            for attempt in range(10): # how many attempts with i number of args
-                if i in working_args: # or (i>3 and len(working_args)/i<0.5):
-                    pass
-                else:
+
+        for arg_count in range(4): # i is number of arguments to try
+            for test_args in window(collection.pregenerated_values, arg_count):
+                if arg_count not in working_args:
                     try:
                         out = None
-                        out=fn(*(garbage.example() for arg in range(i)))
-                        if out != None:
-                            working_args.add(i)
-                            yield i
+                        out = fn(*test_args)
+                        if out is not None:
+                            working_args.add(arg_count)
+                            yield arg_count
                     except Exception as e:
                         pass
+
 
 from boltons.funcutils import FunctionBuilder
 from re import findall
@@ -162,13 +183,14 @@ for t in sorted(g):
 print('starting for loop')
 for t in collection.types:
     t=t if type(t) == type else type(t)
-    print('trying:',t)
-    for wa in find_working_args(t):
-        #print('in second for loop')
-        f = build_test_function(t,wa)
-        #print('test function built')
-        collection.generated_functions.add(f)
-        print('total built:',len(collection.generated_functions),'type:',t,'args:',wa)
+    if not isinstance(t, BaseException):
+        print('trying:',t)
+        for wa in find_working_args(t):
+            #print('in second for loop')
+            f = build_test_function(t,wa)
+            #print('test function built')
+            collection.generated_functions.add(f)
+            print('total built:',len(collection.generated_functions),'type:',t,'args:',wa)
 
 print('total built:',len(collection.generated_functions))
 
@@ -177,7 +199,8 @@ def violent_furniture_generator():
         for f in collection.generated_functions:
             try:
                 out = f()
-                yield out
+                if out is not None:
+                    yield out
             except BaseException as ex:
                 if type(ex) in (KeyboardInterrupt,GeneratorExit):
                     raise ex
@@ -185,9 +208,13 @@ def violent_furniture_generator():
 print('making the generator')
 g = violent_furniture_generator()
 print('here are the first 10')
-for i in range(10):
-    print(next(g))
-
+for i in range(1024):
+    i=next(g)
+    try:
+        print(next(g))
+        print('')
+    except:
+        pass
 exit('im done')
 violent_furniture = violent_furniture_generator()
 next(violent_furniture)
