@@ -3,12 +3,14 @@
 # @Date:   2017-06-27 14:18:29
 # @Last Modified by:   Cody Kochmann
 # @Last Modified time: 2017-07-06 13:50:32
+#import objgraph
 
 import sys
 from inspect import currentframe
 
+#from ipaddress import IPv4Address, IPv4Address, IPv6Address, IPv6Interface
 import ipaddress
-
+import requests
 from battle_tested import garbage, battle_tested
 
 #@battle_tested(max_tests=50)
@@ -113,6 +115,8 @@ collection.types = set(i for i in collection.types if not blacklisted(i))
 #print('after',len(collection.types))
 
 # pregenerate the values needed to test the constructors
+
+
 collection.pregenerated_values = []
 while len(collection.pregenerated_values) < 30:
     try:
@@ -120,7 +124,19 @@ while len(collection.pregenerated_values) < 30:
     except:
         pass
 
+
 print(len(collection.variables))
+#for i in collection.variables:
+#    try:
+#        if not ((not (callable(i) and isinstance(i,type))) or (isinstance(i,str) and hasattr(i,'count') and i.count('\n')>2)):
+#            if 'ip' in repr(i) and 'address' in repr(i):
+#                print(i)
+#                print('---------------------')
+#    except:
+#        pass
+
+#objgraph.show_growth()
+#exit()
 
 #@battle_tested(max_tests=50)
 def find_working_args(fn, garbage=garbage):
@@ -177,22 +193,22 @@ def build_test_function(fn, args=0):
         ).get_func()
 
 g = (repr(i) for i in collection.types)
-for t in sorted(g):
-    print(t)
+#for t in sorted(g):
+#    print(t)
 
-print('starting for loop')
+#print('starting for loop')
 for t in collection.types:
     t=t if type(t) == type else type(t)
     if not isinstance(t, BaseException):
-        print('trying:',t)
+        #print('trying:',t)
         for wa in find_working_args(t):
             #print('in second for loop')
             f = build_test_function(t,wa)
             #print('test function built')
             collection.generated_functions.add(f)
-            print('total built:',len(collection.generated_functions),'type:',t,'args:',wa)
+            #print('total built:',len(collection.generated_functions),'type:',t,'args:',wa)
 
-print('total built:',len(collection.generated_functions))
+#print('total built:',len(collection.generated_functions))
 
 def violent_furniture_generator():
     while 1:
@@ -205,45 +221,33 @@ def violent_furniture_generator():
                 if type(ex) in (KeyboardInterrupt,GeneratorExit):
                     raise ex
                 pass
-print('making the generator')
-g = violent_furniture_generator()
-print('here are the first 10')
-for i in range(1024):
-    i=next(g)
-    try:
-        print(next(g))
-        print('')
-    except:
-        pass
-exit('im done')
-violent_furniture = violent_furniture_generator()
-next(violent_furniture)
-
-def generate_furniture(n=None, violent_furniture=violent_furniture):
-    while 1:
-        #print('trying')
-        try:
-            out = violent_furniture.send(None)
-            return out
-        except BaseException as ex:
-            if type(ex) == KeyboardInterrupt:
-                raise ex
-            pass
-
 
 
 from hypothesis import strategies as st
 
-#furniture = st.none().map(generate_furniture)
+violent_furniture = st.none().map(violent_furniture_generator().send)
 
 print('trying violent_furniture now...')
 
-for i in range(1024):
-    out = generate_furniture()
+def retry_example(fn=violent_furniture.example):
+    """ adds a retry capability to a strategy.example since violent_furniture breaks hypothesis' example() """
     try:
-        print(out)
+        out = fn()
+        return out
     except:
-        pass
+        retry_example()
+violent_furniture.example = retry_example
+
+garbage = st.one_of(garbage, violent_furniture)
+
+from hypothesis import given, strategies as st, settings, Verbosity
+with settings(verbosity=Verbosity.verbose):
+    for i in range(1024):
+        out = garbage.example()
+        try:
+            print(out)
+        except:
+            pass
 
 
 ''' holy shit the stuff below is dangerous '''
@@ -268,3 +272,4 @@ furniture = st.none().map(generate_furniture)
 for i in range(8):
     print(furniture.example())
 """
+#objgraph.show_growth()
