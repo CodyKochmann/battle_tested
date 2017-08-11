@@ -512,7 +512,9 @@ Or:
         ''' prints the stats on a tested function '''
         stats = battle_tested.stats(fn)
         fn_name = fn.__name__ if '__name__' in dir(fn) else fn
-        print('fuzzing {}() found:'.format(fn_name))
+        s = 'fuzzing {}() found:'.format(fn_name)
+        s += ' '*(79-len(s))
+        print(s)
         t=PrettyTable(None)
         for k in sorted(stats.keys()):
             t.add_row((k,stats[k]))
