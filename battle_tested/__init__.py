@@ -53,8 +53,6 @@ garbage = (
     st.fractions(),
     st.integers(),
     st.none(),
-    st.random_module(),
-    st.randoms(),
     st.text(),
     st.tuples(),
     st.uuids(),
