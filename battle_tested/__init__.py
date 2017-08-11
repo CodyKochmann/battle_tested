@@ -33,7 +33,7 @@ from __future__ import print_function
 from functools import wraps
 from prettytable import PrettyTable
 import logging
-from hypothesis import given, strategies as st, settings, Verbosity
+from hypothesis import given, strategies as st, settings, Verbosity, unlimited
 from gc import collect as gc
 import traceback
 import sys
@@ -281,6 +281,16 @@ class generators(object):
         while 1:
             yield time()-start_time
 
+    @staticmethod
+    def countdown(seconds):
+        """ yields True until time expires """
+        start = time()
+        while 1:
+            yield time()-start < seconds
+
+
+class FuzzTimeout(BaseException):
+    pass
 
 from threading import Timer
 
@@ -566,8 +576,8 @@ Parameters:
 
         def print_stats(count, timer, average):
             per_second = count/timer
-            print('tests: {:<12} speed: {}/sec  avg: {}'.format(int(count),int(per_second),int(average.send(per_second))))
-
+            print('tests: {:<12} speed: {}/sec  avg: {}'.format(int(count),int(per_second),int(average.send(per_second))), end='\r')
+            sys.stdout.flush()
         ipython_tools.silence_traceback()
 
         battle_tested._results[fn] = {
@@ -583,12 +593,14 @@ Parameters:
 
         gc_interval = IntervalTimer(3, gc)
 
-        @settings(timeout=seconds, max_examples=max_tests, verbosity=(Verbosity.verbose if verbose else Verbosity.normal))
+        @settings(timeout=unlimited, max_examples=max_tests, verbosity=(Verbosity.verbose if verbose else Verbosity.normal))
         @given(strategy)
         def fuzz(arg_list):
             # make arg_list a tuple as a micro-optimization
             arg_list = tuple(arg_list)
             # unpack the arguments
+            if not fuzz.has_time:
+                raise FuzzTimeout()
             next(count)
             try:
                 out = fn(*arg_list)
@@ -644,14 +656,26 @@ Parameters:
                     ex.args = error_string,
                     raise ex
 
+        fuzz.has_time = True
+
         # run the test
         try:
+            timestopper = Timer(seconds, lambda:setattr(fuzz,'has_time',False))
             gc_interval.start()
             Timer(0.26,lambda:interval.start()).start()
+            timestopper.start()
             fuzz()
+        except FuzzTimeout:
+            pass
+        except KeyboardInterrupt:
+            print('  stopping fuzz early...')
         finally:
             interval.stop()
             gc_interval.stop()
+            try:
+                timestopper.cancel()
+            except:
+                pass
 
             results_dict = battle_tested._results[fn]
             results_dict['iffy_input_types'] = set(i for i in results_dict['crash_input_types'] if i in results_dict['successful_input_types'])
