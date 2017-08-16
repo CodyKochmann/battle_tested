@@ -29,7 +29,7 @@ Or:
 
 """
 
-from __future__ import print_function
+from __future__ import print_function, unicode_literals
 from functools import wraps
 from prettytable import PrettyTable
 import logging
@@ -40,15 +40,26 @@ import sys
 from time import time
 from stricttuple import stricttuple
 from collections import deque
+from itertools import chain
 
 __all__ = 'battle_tested', 'fuzz', 'disable_traceback', 'enable_traceback', 'garbage', 'crash_map', 'success_map', 'results', 'stats', 'print_stats'
+
+def hashable_strategy(s):
+    """ returns true if the input is a hash-able hypothesis strategy """
+    assert hasattr(s, 'example'), 'hashable_strategy needs a strategy argument'
+    try:
+        for i in range(10):
+            hash(s.example())
+    except:
+        return False
+    else:
+        return True
 
 garbage = (
     st.binary(),
     st.booleans(),
     st.characters(),
     st.complex_numbers(),
-    st.decimals(),
     st.floats(),
     st.fractions(),
     st.integers(),
@@ -58,12 +69,27 @@ garbage = (
     st.uuids(),
     st.dictionaries(keys=st.text(), values=st.text())
 )
+
+hashable_strategies = tuple(s for s in garbage if hashable_strategy(s))
+
 garbage+=(
     # iterables
     st.lists(elements=st.one_of(*garbage)),
-    st.iterables(elements=st.one_of(*garbage)),
-    st.dictionaries(keys=st.text(), values=st.one_of(*garbage))
+    st.lists(elements=st.one_of(*garbage)).map(tuple),
+    st.lists(elements=st.one_of(*garbage)).map(iter),
+    st.sets(elements=st.one_of(*hashable_strategies)),
+    st.dictionaries(keys=st.text(), values=st.one_of(*garbage)),
+    st.dictionaries(keys=st.one_of(*hashable_strategies), values=st.one_of(*garbage)),
+    # single element iterables
+    st.one_of(*chain(
+        ( st.lists(elements=i, min_size=1) for i in garbage ),
+        ( st.lists(elements=i, min_size=1).map(tuple) for i in garbage ),
+        ( st.lists(elements=i, min_size=1).map(iter) for i in garbage ),
+        ( st.sets(elements=i, min_size=1) for i in hashable_strategies ),
+        ( st.dictionaries(keys=st.text(min_size=1), values=i, min_size=1) for i in garbage )
+    ))
 )
+
 garbage=st.one_of(*garbage)
 
 def is_py3():
@@ -86,9 +112,14 @@ class PrettyTuple(tuple):
     def __repr__(self):
         if len(self) > 0:
             table = PrettyTable(None)
-            for i in self:
+            try:
+                tup = tuple(sorted(self, key=repr))
+            except:
+                tup = self
+            for i in tup:
                 if isinstance(i, tuple):
-                    table.add_row(i)
+                    t = tuple(x.__name__ if isinstance(x,type) and hasattr(x,'__name__') else repr(x) for x in i)
+                    table.add_row(t)
                 else:
                     if isinstance(i, type):
                         if hasattr(i, '__name__'):
@@ -96,6 +127,7 @@ class PrettyTuple(tuple):
                         else:
                             i=repr(i)
                     table.add_row((i,))
+            #table.align='l'
             return '\n'.join(table.get_string().splitlines()[2:])
         else:
             return '()'
@@ -453,13 +485,13 @@ Or:
             lambda args:len(args)>0,
         ),
         message = (
-            lambda message:type(message) == str or message == None ,
+            lambda message:type(message).__name__ in 'str unicode NoneType' ,
         ),
         err_type = (
             lambda err_type:type(err_type)==type ,
         ),
         trace = (
-            lambda trace:type(trace)==str ,
+            lambda trace:type(trace).__name__ in 'str unicode' ,
         )
     )
 
@@ -529,7 +561,7 @@ Or:
     success_map = _success_map()
 
     @staticmethod
-    def fuzz(fn, seconds=2, max_tests=1000000, verbose=False, keep_testing=True):
+    def fuzz(fn, seconds=3, max_tests=1000000, verbose=False, keep_testing=True):
         """
 
 fuzz - battle_tested's primary weapon for testing functions.
