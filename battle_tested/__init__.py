@@ -561,7 +561,7 @@ Or:
     success_map = _success_map()
 
     @staticmethod
-    def fuzz(fn, seconds=6, max_tests=1000000, verbose=False, keep_testing=True):
+    def fuzz(fn, seconds=3, max_tests=1000000, verbose=False, keep_testing=True):
         """
 
 fuzz - battle_tested's primary weapon for testing functions.
@@ -644,32 +644,17 @@ Parameters:
                 if input_types in battle_tested._results[fn]['crash_input_types']:
                     battle_tested._results[fn]['iffy_input_types'].add(input_types)
                 # add the input types to the successful collection
-                battle_tested._results[fn]['successful_input_types'].append(input_types)
+                if input_types not in battle_tested._results[fn]['successful_input_types']:
+                    battle_tested._results[fn]['successful_input_types'].append(input_types)
                 # add the output type to the output collection
                 battle_tested._results[fn]['output_types'].add(type(out))
                 battle_tested.success_map.add(tuple(type(i) for i in arg_list))
             except Exception as ex:
-                # get the step where the code broke
-                tb_steps_full = [i for i in traceback_steps()]
-                tb_steps_with_func_name = [i for i in tb_steps_full if i.splitlines()[0].endswith(fn.__name__)]
-
-                if len(tb_steps_with_func_name)>0:
-                    tb = tb_steps_with_func_name[-1]
-                else:
-                    tb = tb_steps_full[-1]
-
-                ex_message = ''
-                if hasattr(ex, 'args') and len(ex.args)>0:
-                    ex_message = ex.args[0]
-                elif hasattr(ex, 'message') and len(ex.message)>0:
-                    ex_message = ex.message
-
-                error_string = format_error_message(
-                    fn.__name__,
-                    '{} - {}'.format(type(ex).__name__,ex_message),
-                    tb,
-                    (arg_list if len(arg_list)!=1 else '({})'.format(repr(arg_list[0])))
-                )
+                ex_message = ex.args[0] if (
+                    hasattr(ex, 'args') and len(ex.args) > 0
+                ) else (ex.message if (
+                    hasattr(ex, 'message') and len(ex.message) > 0
+                ) else '')
 
                 battle_tested._results[fn]['crash_input_types'].add(tuple(type(i) for i in arg_list))
 
@@ -686,6 +671,21 @@ Parameters:
                     )
                     battle_tested._results[fn]['exception_types'].add(type(ex))
                 else:
+                    # get the step where the code broke
+                    tb_steps_full = [i for i in traceback_steps()]
+                    tb_steps_with_func_name = [i for i in tb_steps_full if i.splitlines()[0].endswith(fn.__name__)]
+
+                    if len(tb_steps_with_func_name)>0:
+                        tb = tb_steps_with_func_name[-1]
+                    else:
+                        tb = tb_steps_full[-1]
+
+                    error_string = format_error_message(
+                        fn.__name__,
+                        '{} - {}'.format(type(ex).__name__,ex_message),
+                        tb,
+                        (arg_list if len(arg_list)!=1 else '({})'.format(repr(arg_list[0])))
+                    )
                     ex.message = error_string
                     ex.args = error_string,
                     raise ex
