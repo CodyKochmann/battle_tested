@@ -561,7 +561,7 @@ Or:
     success_map = _success_map()
 
     @staticmethod
-    def fuzz(fn, seconds=3, max_tests=1000000, verbose=False, keep_testing=True):
+    def fuzz(fn, seconds=6, max_tests=1000000, verbose=False, keep_testing=True):
         """
 
 fuzz - battle_tested's primary weapon for testing functions.
