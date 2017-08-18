@@ -40,7 +40,7 @@ import sys
 from time import time
 from stricttuple import stricttuple
 from collections import deque
-from itertools import chain
+from itertools import chain, product 
 
 __all__ = 'battle_tested', 'fuzz', 'disable_traceback', 'enable_traceback', 'garbage', 'crash_map', 'success_map', 'results', 'stats', 'print_stats'
 
@@ -184,7 +184,7 @@ def traceback_steps(trace_text=None):
     # get rid of the first line with traceback
     trace_text = ('\n'.join(trace_text.splitlines()[1:-1]))
     # split the text into traceback steps
-    file_lines = [i for i in trace_text.splitlines() if i.startswith('  File "') and '", line' in i]
+    file_lines = [i for i in trace_text.splitlines() if '", line' in i and i.startswith('  File "') ]
     # build the output
     out = []
     for i in trace_text.splitlines():
@@ -370,7 +370,10 @@ class ipython_tools(object):
     detected = 'IPython' in sys.modules
     if detected:
         from IPython import get_ipython
+        detected = get_ipython() is not None
+    if detected:
         magic = get_ipython().magic
+
     @staticmethod
     def silence_traceback():
         'silences ipythons verbose debugging temporarily'
@@ -629,66 +632,66 @@ Parameters:
 
         @settings(timeout=unlimited, max_examples=max_tests, verbosity=(Verbosity.verbose if verbose else Verbosity.normal))
         @given(strategy)
-        def fuzz(arg_list):
-            # make arg_list a tuple as a micro-optimization
-            arg_list = tuple(arg_list)
-            # unpack the arguments
-            if not fuzz.has_time:
-                raise FuzzTimeout()
-            next(count)
-            try:
-                out = fn(*arg_list)
-                # the rest of this block is handling logging a success
-                input_types = tuple(type(i) for i in arg_list)
-                # if the input types have caused a crash before, add them to iffy_types
-                if input_types in battle_tested._results[fn]['crash_input_types']:
-                    battle_tested._results[fn]['iffy_input_types'].add(input_types)
-                # add the input types to the successful collection
-                if input_types not in battle_tested._results[fn]['successful_input_types']:
-                    battle_tested._results[fn]['successful_input_types'].append(input_types)
-                # add the output type to the output collection
-                battle_tested._results[fn]['output_types'].add(type(out))
-                battle_tested.success_map.add(tuple(type(i) for i in arg_list))
-            except Exception as ex:
-                ex_message = ex.args[0] if (
-                    hasattr(ex, 'args') and len(ex.args) > 0
-                ) else (ex.message if (
-                    hasattr(ex, 'message') and len(ex.message) > 0
-                ) else '')
+        def fuzz(given_args):
+            # use product to make more tests out of what hypothesis could make
+            for arg_list in product(given_args, repeat=len(given_args)):
+                # unpack the arguments
+                if not fuzz.has_time:
+                    raise FuzzTimeout()
+                next(count)
+                try:
+                    out = fn(*arg_list)
+                    # the rest of this block is handling logging a success
+                    input_types = tuple(type(i) for i in arg_list)
+                    # if the input types have caused a crash before, add them to iffy_types
+                    if input_types in battle_tested._results[fn]['crash_input_types']:
+                        battle_tested._results[fn]['iffy_input_types'].add(input_types)
+                    # add the input types to the successful collection
+                    if input_types not in battle_tested._results[fn]['successful_input_types']:
+                        battle_tested._results[fn]['successful_input_types'].append(input_types)
+                    # add the output type to the output collection
+                    battle_tested._results[fn]['output_types'].add(type(out))
+                    battle_tested.success_map.add(tuple(type(i) for i in arg_list))
+                except Exception as ex:
+                    ex_message = ex.args[0] if (
+                        hasattr(ex, 'args') and len(ex.args) > 0
+                    ) else (ex.message if (
+                        hasattr(ex, 'message') and len(ex.message) > 0
+                    ) else '')
 
-                battle_tested._results[fn]['crash_input_types'].add(tuple(type(i) for i in arg_list))
+                    battle_tested._results[fn]['crash_input_types'].add(tuple(type(i) for i in arg_list))
 
-                if keep_testing:
-                    tb_text = traceback_text()
-                    tb = '{}{}'.format(traceback_file_lines(tb_text),repr(type(ex)))
-                    battle_tested.crash_map[tb]={'type':type(ex),'message':ex_message,'args':arg_list,'arg_types':tuple(type(i) for i in arg_list)}
-                    battle_tested._results[fn]['unique_crashes'][tb]=battle_tested.Crash(
-                        err_type=type(ex),
-                        message=repr(ex_message),
-                        args=arg_list,
-                        arg_types=tuple(type(i) for i in arg_list),
-                        trace=str(tb_text)
-                    )
-                    battle_tested._results[fn]['exception_types'].add(type(ex))
-                else:
-                    # get the step where the code broke
-                    tb_steps_full = [i for i in traceback_steps()]
-                    tb_steps_with_func_name = [i for i in tb_steps_full if i.splitlines()[0].endswith(fn.__name__)]
-
-                    if len(tb_steps_with_func_name)>0:
-                        tb = tb_steps_with_func_name[-1]
+                    if keep_testing:
+                        tb_text = traceback_text()
+                        tb = '{}{}'.format(traceback_file_lines(tb_text),repr(type(ex)))
+                        battle_tested.crash_map[tb]={'type':type(ex),'message':ex_message,'args':arg_list,'arg_types':tuple(type(i) for i in arg_list)}
+                        battle_tested._results[fn]['unique_crashes'][tb]=battle_tested.Crash(
+                            err_type=type(ex),
+                            message=repr(ex_message),
+                            args=arg_list,
+                            arg_types=tuple(type(i) for i in arg_list),
+                            trace=str(tb_text)
+                        )
+                        battle_tested._results[fn]['exception_types'].add(type(ex))
                     else:
-                        tb = tb_steps_full[-1]
+                        # get the step where the code broke
+                        tb_steps_full = [i for i in traceback_steps()]
+                        tb_steps_with_func_name = [i for i in tb_steps_full if i.splitlines()[0].endswith(fn.__name__)]
 
-                    error_string = format_error_message(
-                        fn.__name__,
-                        '{} - {}'.format(type(ex).__name__,ex_message),
-                        tb,
-                        (arg_list if len(arg_list)!=1 else '({})'.format(repr(arg_list[0])))
-                    )
-                    ex.message = error_string
-                    ex.args = error_string,
-                    raise ex
+                        if len(tb_steps_with_func_name)>0:
+                            tb = tb_steps_with_func_name[-1]
+                        else:
+                            tb = tb_steps_full[-1]
+
+                        error_string = format_error_message(
+                            fn.__name__,
+                            '{} - {}'.format(type(ex).__name__,ex_message),
+                            tb,
+                            (arg_list if len(arg_list)!=1 else '({})'.format(repr(arg_list[0])))
+                        )
+                        ex.message = error_string
+                        ex.args = error_string,
+                        raise ex
 
         fuzz.has_time = True
 
@@ -807,7 +810,7 @@ if __name__ == '__main__':
     #  Examples using the function syntax
     #======================================
 
-    def sample3(input_arg):
+    def sample3(a,b):
         # this one blows up on purpose
         return input_arg+1
 
