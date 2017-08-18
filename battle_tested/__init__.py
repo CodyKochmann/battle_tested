@@ -55,6 +55,11 @@ def hashable_strategy(s):
     else:
         return True
 
+def multi_strategy(*a):
+    """ returns a strategy with multiple strategies nested underneath since
+        strategies.one_of flattened the nested strats for performance """
+    return st.none().map(lambda i, o=st.one_of(*a):o.example())
+
 garbage = (
     st.binary(),
     st.booleans(),
@@ -74,14 +79,14 @@ hashable_strategies = tuple(s for s in garbage if hashable_strategy(s))
 
 garbage+=(
     # iterables
-    st.lists(elements=st.one_of(*garbage)),
-    st.lists(elements=st.one_of(*garbage)).map(tuple),
-    st.lists(elements=st.one_of(*garbage)).map(iter),
-    st.sets(elements=st.one_of(*hashable_strategies)),
-    st.dictionaries(keys=st.text(), values=st.one_of(*garbage)),
-    st.dictionaries(keys=st.one_of(*hashable_strategies), values=st.one_of(*garbage)),
+    st.lists(elements=multi_strategy(*garbage)),
+    st.lists(elements=multi_strategy(*garbage)).map(tuple),
+    st.lists(elements=multi_strategy(*garbage)).map(iter),
+    st.sets(elements=multi_strategy(*hashable_strategies)),
+    st.dictionaries(keys=st.text(), values=multi_strategy(*garbage)),
+    st.dictionaries(keys=multi_strategy(*hashable_strategies), values=multi_strategy(*garbage)),
     # single element iterables
-    st.one_of(*chain(
+    multi_strategy(*chain(
         ( st.lists(elements=i, min_size=1) for i in garbage ),
         ( st.lists(elements=i, min_size=1).map(tuple) for i in garbage ),
         ( st.lists(elements=i, min_size=1).map(iter) for i in garbage ),
