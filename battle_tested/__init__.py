@@ -40,7 +40,7 @@ import sys
 from time import time
 from stricttuple import stricttuple
 from collections import deque
-from itertools import chain, product 
+from itertools import chain, product
 
 __all__ = 'battle_tested', 'fuzz', 'disable_traceback', 'enable_traceback', 'garbage', 'crash_map', 'success_map', 'results', 'stats', 'print_stats'
 
@@ -812,7 +812,7 @@ if __name__ == '__main__':
 
     def sample3(a,b):
         # this one blows up on purpose
-        return input_arg+1
+        return a+1
 
     #fuzz(lambda i:i+1)
     fuzz(sample3, seconds=120, keep_testing=True)
