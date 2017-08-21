@@ -635,7 +635,7 @@ Parameters:
             'unique_crashes':dict()
         }
 
-        interval = IntervalTimer(0.26, lambda:print_stats(count.send(0),next(timer),average))
+        interval = IntervalTimer(0.25, lambda:print_stats(count.send(0),next(timer),average))
 
         gc_interval = IntervalTimer(3, gc)
 
