@@ -34,6 +34,7 @@ from functools import wraps
 from prettytable import PrettyTable
 import logging
 from hypothesis import given, strategies as st, settings, Verbosity, unlimited
+from hypothesis.errors import HypothesisException
 from gc import collect as gc
 import traceback
 import sys
@@ -623,7 +624,7 @@ Parameters:
             print('tests: {:<8}  {:>6}/sec - {}s    '.format(
                 display_stats.count,
                 int(display_stats.count/next(display_stats.timer)),
-                int(display_stats.test_time-next(display_stats.timer)) if overwrite_line else 0.0
+                int(display_stats.test_time-next(display_stats.timer)) if overwrite_line else 0
             ), end=('\r' if overwrite_line else '\n'))
             sys.stdout.flush()
         display_stats.test_time = seconds
@@ -719,11 +720,19 @@ Parameters:
         fuzz.has_time = True
         fuzz.first_run = True
         fuzz.timestopper = Timer(seconds, lambda:setattr(fuzz,'has_time',False))
+        fuzz.exceptions = deque()
 
         # run the test
         try:
             gc_interval.start()
-            fuzz()
+            while 1:
+                try:
+                    fuzz()
+                    break
+                except HypothesisException as ex:
+                    fuzz.exceptions.append(ex)
+                    if len(fuzz.exceptions)>3:
+                        break
         except FuzzTimeout:
             pass
         except KeyboardInterrupt:
