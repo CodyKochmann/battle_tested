@@ -98,6 +98,12 @@ garbage+=(
 
 garbage=st.one_of(*garbage)
 
+class storage():
+    """ where battle_tested stores things """
+    test_inputs = deque()
+
+{storage.test_inputs.append(garbage.example()) for i in range(200)}
+
 def is_py3():
     return sys.version_info >= (3, 0)
 
@@ -324,6 +330,28 @@ class generators(object):
         start = time()
         while 1:
             yield time()-start < seconds
+
+    @staticmethod
+    def chunks(itr, size):
+        """ yields a windowed chunk of a given size """
+        out = deque(maxlen=size)
+        for i in itr:
+            out.append(i)
+            if len(out) == size:
+                yield tuple(out)
+                out.clear()
+
+    @staticmethod
+    def chain(*a):
+        """itertools.chain, just better"""
+        for g in a:
+            if hasattr(g, '__iter__'):
+                # iterate through if its iterable
+                for i in g:
+                    yield i
+            else:
+                # just yield the whole thing if its not
+                yield g
 
 
 class FuzzTimeout(BaseException):
@@ -656,9 +684,27 @@ Parameters:
                 display_stats.start()
                 # start the countdown for timeout
                 fuzz.timestopper.start()
+                def test_variables():
+                    for chunk in generators.chunks(storage.test_inputs,size=fuzz.args_needed):
+                        for combination in product(chunk, repeat=fuzz.args_needed):
+                            yield combination
+                    if fuzz.args_needed > 1:
+                        for i in product(storage.test_inputs, repeat=fuzz.args_needed):
+                            yield i
+                test_variables = test_variables()
+                #print('using {} cached tests'.format(len(storage.test_inputs)))
+            else:
+                #print('reverting to hypothesis generation after {} tests'.format(display_stats.count))
+                for i in given_args:
+                    storage.test_inputs.append(i)
+                # use product to make more tests out of what hypothesis could make
+                test_variables = product(given_args, repeat=len(given_args))
 
             # use product to make more tests out of what hypothesis could make
-            for arg_list in product(given_args, repeat=len(given_args)):
+            for arg_list in test_variables:
+                arg_list = tuple(arg_list)
+                #if len(arg_list) != fuzz.args_needed:
+                #    exit('got {} args? {}'.format(len(arg_list),next(test_variables)))
                 # unpack the arguments
                 if not fuzz.has_time:
                     raise FuzzTimeout()
@@ -721,6 +767,7 @@ Parameters:
         fuzz.first_run = True
         fuzz.timestopper = Timer(seconds, lambda:setattr(fuzz,'has_time',False))
         fuzz.exceptions = deque()
+        fuzz.args_needed = args_needed
 
         # run the test
         try:
@@ -824,7 +871,7 @@ if __name__ == '__main__':
     def sample(i):
         return []
 
-    @battle_tested(keep_testing=False)
+    @battle_tested(keep_testing=False, seconds=20)
     def sample2(a,b,c,d=''):
         t = a, b, c, d
 
