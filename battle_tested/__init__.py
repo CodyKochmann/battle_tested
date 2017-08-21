@@ -798,7 +798,7 @@ if __name__ == '__main__':
     def sample(i):
         return []
 
-    @battle_tested()
+    @battle_tested(keep_testing=False)
     def sample2(a,b,c,d=''):
         t = a, b, c, d
 
@@ -809,7 +809,13 @@ if __name__ == '__main__':
     print(sample2('a','b',2,4))
 
     # prove that successes of any type are possible
-    fuzz(lambda i:i , keep_testing=True, seconds=10)
+    r = fuzz(lambda i:i , keep_testing=True, seconds=10)
+    assert len(r.crash_input_types) == 0, 'fuzzing lambda() changed expected behavior'
+    assert len(r.exception_types) == 0, 'fuzzing lambda() changed expected behavior'
+    assert len(r.iffy_input_types) == 0, 'fuzzing lambda() changed expected behavior'
+    assert len(r.unique_crashes) == 0, 'fuzzing lambda() changed expected behavior'
+    assert len(r.output_types) > 10, 'fuzzing lambda() changed expected behavior'
+    assert len(r.successful_input_types) > 10, 'fuzzing lambda() changed expected behavior'
 
     #======================================
     #  Examples using the function syntax
@@ -820,9 +826,15 @@ if __name__ == '__main__':
         return a+1
 
     #fuzz(lambda i:i+1)
-    fuzz(sample3, seconds=120, keep_testing=True)
+    r=fuzz(sample3, seconds=90, keep_testing=True)
     crash_map()
     success_map()
+
+    assert len(r.crash_input_types) > 10 , 'fuzzing sample3() changed expected behavior'
+    assert len(r.exception_types) > 0, 'fuzzing sample3() changed expected behavior'
+    assert len(r.unique_crashes) > 0, 'fuzzing sample3() changed expected behavior'
+    assert len(r.output_types) > 1, 'fuzzing sample3() changed expected behavior'
+    assert len(r.successful_input_types) > 10, 'fuzzing sample3() changed expected behavior'
 
     fuzz(lambda i:i)
 
@@ -840,16 +852,16 @@ if __name__ == '__main__':
             print('found one')
             crash_examples[e.args[0]]=(key,value)
 
-
-
     from pprint import pprint
 
-    sample3_results = battle_tested.results(sample3)
-    print(sample3_results.exception_types)
-
     print('fuzzing fuzz')
-    fuzz(fuzz,keep_testing=True,seconds=10)
+    r = fuzz(fuzz,keep_testing=True,seconds=10)
 
-    #pprint(sample3_results)
+    assert len(r.crash_input_types) > 1000 , 'fuzzing fuzz() changed expected behavior'
+    assert len(r.exception_types) == 1, 'fuzzing fuzz() changed expected behavior'
+    assert len(r.iffy_input_types) == 0, 'fuzzing fuzz() changed expected behavior'
+    assert len(r.output_types) == 0, 'fuzzing fuzz() changed expected behavior'
+    assert len(r.successful_input_types) == 0, 'fuzzing fuzz() changed expected behavior'
+    assert len(r.unique_crashes) == 1, 'fuzzing fuzz() changed expected behavior'
 
     print('finished running battle_tested.py')
