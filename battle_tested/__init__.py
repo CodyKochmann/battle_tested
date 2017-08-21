@@ -311,7 +311,6 @@ class generators(object):
             count += 1
 
     @staticmethod
-    @started
     def timer():
         """ generator that tracks time """
         start_time = time()
@@ -620,10 +619,20 @@ Parameters:
         average = generators.avg()
         timer = generators.timer()
 
-        def print_stats(count, timer, average):
-            per_second = count/timer
-            print('tests: {:<12} speed: {}/sec  avg: {}'.format(int(count),int(per_second),int(average.send(per_second))), end='\r')
+        def display_stats(overwrite_line=True):
+            print('tests: {:<8}  {:>6}/sec - {}s    '.format(
+                display_stats.count,
+                int(display_stats.count/next(display_stats.timer)),
+                int(display_stats.test_time-next(display_stats.timer)) if overwrite_line else 0.0
+            ), end=('\r' if overwrite_line else '\n'))
             sys.stdout.flush()
+        display_stats.test_time = seconds
+        display_stats.count = 0
+        display_stats.timer = generators.timer()
+        display_stats.average = generators.avg()
+        display_stats.interval = IntervalTimer(0.16, display_stats)
+        display_stats.start = lambda:(next(display_stats.timer),display_stats.interval.start())
+
         ipython_tools.silence_traceback()
 
         battle_tested._results[fn] = {
@@ -635,19 +644,24 @@ Parameters:
             'unique_crashes':dict()
         }
 
-        interval = IntervalTimer(0.25, lambda:print_stats(count.send(0),next(timer),average))
-
         gc_interval = IntervalTimer(3, gc)
 
         @settings(timeout=unlimited, perform_health_check=False, database_file=None, max_examples=max_tests, verbosity=(Verbosity.verbose if verbose else Verbosity.normal))
         @given(strategy)
         def fuzz(given_args):
+            if fuzz.first_run:
+                fuzz.first_run = False
+                # start the display interval
+                display_stats.start()
+                # start the countdown for timeout
+                fuzz.timestopper.start()
+
             # use product to make more tests out of what hypothesis could make
             for arg_list in product(given_args, repeat=len(given_args)):
                 # unpack the arguments
                 if not fuzz.has_time:
                     raise FuzzTimeout()
-                next(count)
+                display_stats.count += 1
                 try:
                     out = fn(*arg_list)
                     # the rest of this block is handling logging a success
@@ -703,23 +717,23 @@ Parameters:
                         raise ex
 
         fuzz.has_time = True
+        fuzz.first_run = True
+        fuzz.timestopper = Timer(seconds, lambda:setattr(fuzz,'has_time',False))
 
         # run the test
         try:
-            timestopper = Timer(seconds, lambda:setattr(fuzz,'has_time',False))
             gc_interval.start()
-            Timer(0.26,lambda:interval.start()).start()
-            timestopper.start()
             fuzz()
         except FuzzTimeout:
             pass
         except KeyboardInterrupt:
             print('  stopping fuzz early...')
         finally:
-            interval.stop()
+            display_stats.interval.stop()
+            display_stats(False)
             gc_interval.stop()
             try:
-                timestopper.cancel()
+                fuzz.timestopper.cancel()
             except:
                 pass
 
@@ -740,7 +754,6 @@ Parameters:
             #results_dict['unique_crashes'] = tuple(results_dict['unique_crashes'].values())
             ## remove duplicate successful input types
             #results_dict['successful_input_types'] = set(results_dict['successful_input_types'])
-            print('total tests: {}'.format(count.send(0)))
         if keep_testing:
             #examples_that_break = ('examples that break' if len(battle_tested.crash_map)>1 else 'example that broke')
             #print('found {} {} {}()'.format(len(battle_tested.crash_map),examples_that_break,fn.__name__))
