@@ -307,7 +307,7 @@ class generators(object):
         total = generators.sum()
         i=0
         while 1:
-            i = yield (total.send(i)*1.0/count if count else 0)
+            i = yield (((total.send(i)*1.0)/count) if count else 0)
             count += 1
 
     @staticmethod
@@ -342,8 +342,11 @@ class IntervalTimer(object):
         self.function=function
         self.stopped=False
         self.running=False
+        self.thread=Timer(self.seconds,self.function)
 
     def start(self):
+        if self.thread.is_alive():
+            self.thread.join()
         if not self.stopped:
             if not self.running:
                 self.function()
@@ -354,13 +357,14 @@ class IntervalTimer(object):
             self.restart_thread.start()
 
     def stop(self):
+        self.stopped = True
+        self.running = False
         try:
-            self.stopped = True
-            self.running = False
             self.thread.cancel()
+        except AttributeError: pass
+        try:
             self.restart_thread.cancel()
-        except AttributeError:
-            pass
+        except AttributeError: pass
 
 from io import StringIO
 def run_silently(fn):
@@ -631,11 +635,11 @@ Parameters:
             'unique_crashes':dict()
         }
 
-        interval = IntervalTimer(0.25, lambda:print_stats(count.send(0),next(timer),average))
+        interval = IntervalTimer(0.002, lambda:print_stats(count.send(0),next(timer),average))
 
         gc_interval = IntervalTimer(3, gc)
 
-        @settings(timeout=unlimited, max_examples=max_tests, verbosity=(Verbosity.verbose if verbose else Verbosity.normal))
+        @settings(timeout=unlimited, perform_health_check=False, database_file=None, max_examples=max_tests, verbosity=(Verbosity.verbose if verbose else Verbosity.normal))
         @given(strategy)
         def fuzz(given_args):
             # use product to make more tests out of what hypothesis could make
@@ -825,8 +829,9 @@ if __name__ == '__main__':
         # this one blows up on purpose
         return a+1
 
-    #fuzz(lambda i:i+1)
-    r=fuzz(sample3, seconds=90, keep_testing=True)
+    # this tests a long fuzz
+    r=fuzz(sample3, seconds=90)
+
     crash_map()
     success_map()
 
@@ -855,7 +860,7 @@ if __name__ == '__main__':
     from pprint import pprint
 
     print('fuzzing fuzz')
-    r = fuzz(fuzz,keep_testing=True,seconds=10)
+    r = fuzz(fuzz,seconds=10)
 
     assert len(r.crash_input_types) > 1000 , 'fuzzing fuzz() changed expected behavior'
     assert len(r.exception_types) == 1, 'fuzzing fuzz() changed expected behavior'
