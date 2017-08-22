@@ -101,6 +101,7 @@ garbage=st.one_of(*garbage)
 class storage():
     """ where battle_tested stores things """
     test_inputs = deque()
+    results = {}
 
 {storage.test_inputs.append(garbage.example()) for i in range(200)}
 
@@ -500,7 +501,7 @@ Or:
     def __verify_tested__(fn):
         """ asserts that the function exists in battle_tested's results """
         battle_tested.__verify_function__(fn)
-        assert fn in battle_tested._results.keys(), '{} was not found in battle_tested\'s results, you probably haven\'t tested it yet'.format(fn)
+        assert fn in storage.results.keys(), '{} was not found in battle_tested\'s results, you probably haven\'t tested it yet'.format(fn)
 
     @staticmethod
     def __verify_keep_testing__(keep_testing):
@@ -508,7 +509,6 @@ Or:
         assert type(keep_testing) == bool, 'keep_testing needs to be a bool'
         assert keep_testing == True or keep_testing == False, 'invalid value for keep_testing'
 
-    _results = {} # where all of the test results go.
     # results are composed like this
     # results[my_function]['unique_crashes']=[list_of_crashes]
     # results[my_function]['successes']=[list_of_successes]
@@ -570,7 +570,7 @@ Or:
     def results(fn):
         '''returns the collected results of the given function'''
         battle_tested.__verify_tested__(fn)
-        return battle_tested._results[fn]
+        return storage.results[fn]
 
     @staticmethod
     def stats(fn):
@@ -664,7 +664,7 @@ Parameters:
 
         ipython_tools.silence_traceback()
 
-        battle_tested._results[fn] = {
+        storage.results[fn] = {
             'successful_input_types':deque(maxlen=500),
             'crash_input_types':set(),
             'iffy_input_types':set(), # types that both succeed and crash the function
@@ -714,13 +714,13 @@ Parameters:
                     # the rest of this block is handling logging a success
                     input_types = tuple(type(i) for i in arg_list)
                     # if the input types have caused a crash before, add them to iffy_types
-                    if input_types in battle_tested._results[fn]['crash_input_types']:
-                        battle_tested._results[fn]['iffy_input_types'].add(input_types)
+                    if input_types in storage.results[fn]['crash_input_types']:
+                        storage.results[fn]['iffy_input_types'].add(input_types)
                     # add the input types to the successful collection
-                    if input_types not in battle_tested._results[fn]['successful_input_types']:
-                        battle_tested._results[fn]['successful_input_types'].append(input_types)
+                    if input_types not in storage.results[fn]['successful_input_types']:
+                        storage.results[fn]['successful_input_types'].append(input_types)
                     # add the output type to the output collection
-                    battle_tested._results[fn]['output_types'].add(type(out))
+                    storage.results[fn]['output_types'].add(type(out))
                     battle_tested.success_map.add(tuple(type(i) for i in arg_list))
                 except Exception as ex:
                     ex_message = ex.args[0] if (
@@ -729,20 +729,20 @@ Parameters:
                         hasattr(ex, 'message') and len(ex.message) > 0
                     ) else '')
 
-                    battle_tested._results[fn]['crash_input_types'].add(tuple(type(i) for i in arg_list))
+                    storage.results[fn]['crash_input_types'].add(tuple(type(i) for i in arg_list))
 
                     if keep_testing:
                         tb_text = traceback_text()
                         tb = '{}{}'.format(traceback_file_lines(tb_text),repr(type(ex)))
                         battle_tested.crash_map[tb]={'type':type(ex),'message':ex_message,'args':arg_list,'arg_types':tuple(type(i) for i in arg_list)}
-                        battle_tested._results[fn]['unique_crashes'][tb]=battle_tested.Crash(
+                        storage.results[fn]['unique_crashes'][tb]=battle_tested.Crash(
                             err_type=type(ex),
                             message=repr(ex_message),
                             args=arg_list,
                             arg_types=tuple(type(i) for i in arg_list),
                             trace=str(tb_text)
                         )
-                        battle_tested._results[fn]['exception_types'].add(type(ex))
+                        storage.results[fn]['exception_types'].add(type(ex))
                     else:
                         # get the step where the code broke
                         tb_steps_full = [i for i in traceback_steps()]
@@ -793,10 +793,10 @@ Parameters:
             except:
                 pass
 
-            results_dict = battle_tested._results[fn]
+            results_dict = storage.results[fn]
             results_dict['iffy_input_types'] = set(i for i in results_dict['crash_input_types'] if i in results_dict['successful_input_types'])
 
-            battle_tested._results[fn] = battle_tested.Result(
+            storage.results[fn] = battle_tested.Result(
                 successful_input_types = PrettyTuple(set(i for i in results_dict['successful_input_types'] if i not in results_dict['iffy_input_types'] and i not in results_dict['crash_input_types'])),
                 crash_input_types = PrettyTuple(results_dict['crash_input_types']),
                 iffy_input_types = PrettyTuple(results_dict['iffy_input_types']),
@@ -817,14 +817,14 @@ Parameters:
             #print('run crash_map() or success_map() to access the test results')
         else:
             print('battle_tested: no falsifying examples found')
-        return battle_tested._results[fn]
+        return storage.results[fn]
 
 
     def __call__(self, fn):
         """ runs before the decorated function is called """
         self.__verify_function__(fn)
 
-        if fn not in battle_tested._results:
+        if fn not in storage.results:
             # only test the first time this function is called
             if not ('skip_test' in self.kwargs and self.kwargs['skip_test']):
                 # skip the test if it is explicitly turned off
