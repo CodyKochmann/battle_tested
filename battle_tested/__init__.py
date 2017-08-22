@@ -41,7 +41,7 @@ import sys
 from time import time
 from stricttuple import stricttuple
 from collections import deque
-from itertools import chain, product
+from itertools import chain, product, permutations
 
 __all__ = 'battle_tested', 'fuzz', 'disable_traceback', 'enable_traceback', 'garbage', 'crash_map', 'success_map', 'results', 'stats', 'print_stats'
 
@@ -62,14 +62,14 @@ def multi_strategy(*a):
     return st.none().map(lambda i, o=st.one_of(*a):o.example())
 
 garbage = (
-    st.binary(),
     st.booleans(),
+    st.none(),
+    st.binary(),
     st.characters(),
     st.complex_numbers(),
     st.floats(),
     st.fractions(),
     st.integers(),
-    st.none(),
     st.text(),
     st.tuples(),
     st.uuids(),
@@ -80,12 +80,16 @@ hashable_strategies = tuple(s for s in garbage if hashable_strategy(s))
 
 garbage+=(
     # iterables
-    st.lists(elements=multi_strategy(*garbage)),
-    st.lists(elements=multi_strategy(*garbage)).map(tuple),
-    st.lists(elements=multi_strategy(*garbage)).map(iter),
+    multi_strategy(
+        st.lists(elements=multi_strategy(*garbage)),
+        st.lists(elements=multi_strategy(*garbage)).map(tuple),
+        st.lists(elements=multi_strategy(*garbage)).map(iter)
+    ),
     st.sets(elements=multi_strategy(*hashable_strategies)),
-    st.dictionaries(keys=st.text(), values=multi_strategy(*garbage)),
-    st.dictionaries(keys=multi_strategy(*hashable_strategies), values=multi_strategy(*garbage)),
+    multi_strategy(
+        st.dictionaries(keys=st.text(), values=multi_strategy(*garbage)),
+        st.dictionaries(keys=multi_strategy(*hashable_strategies), values=multi_strategy(*garbage))
+    ),
     # single element iterables
     multi_strategy(*chain(
         ( st.lists(elements=i, min_size=1) for i in garbage ),
@@ -703,21 +707,26 @@ Parameters:
                 display_stats.start()
                 # start the countdown for timeout
                 fuzz.timestopper.start()
-                def test_variables():
-                    for chunk in generators.chunks(storage.test_inputs,size=fuzz.args_needed):
-                        for combination in product(chunk, repeat=fuzz.args_needed):
-                            yield combination
-                    if fuzz.args_needed > 1:
-                        for i in product(generators.every_possible_object(storage.test_inputs), repeat=fuzz.args_needed):
-                            yield i
-                test_variables = test_variables()
+                test_variables = (i for i in permutations(generators.every_possible_object(storage.test_inputs), fuzz.args_needed))
                 #print('using {} cached tests'.format(len(storage.test_inputs)))
             else:
                 #print('reverting to hypothesis generation after {} tests'.format(display_stats.count))
                 for i in given_args:
                     storage.test_inputs.append(i)
-                # use product to make more tests out of what hypothesis could make
-                test_variables = product(given_args, repeat=len(given_args))
+                def test_variables(given_args=given_args):
+                    if fuzz.args_needed>2:
+                        for new_arg in given_args:
+                            for t in generators.chunks(generators.every_possible_object(storage.test_inputs), size=fuzz.args_needed-1):
+                                for combination in permutations((t+(new_arg,)), fuzz.args_needed):
+                                    yield combination
+                    elif fuzz.args_needed == 2:
+                        for new_arg in given_args:
+                            for i in storage.test_inputs:
+                                yield (i,new_arg)
+                                yield (new_arg,i)
+                    else:
+                        yield given_args
+                test_variables = test_variables()
 
             # use product to make more tests out of what hypothesis could make
             for arg_list in test_variables:
@@ -915,10 +924,10 @@ if __name__ == '__main__':
 
     def sample3(a,b):
         # this one blows up on purpose
-        return a+1
+        return a+b
 
     # this tests a long fuzz
-    r=fuzz(sample3, seconds=90)
+    r=fuzz(sample3, seconds=20)
 
     crash_map()
     success_map()
