@@ -103,7 +103,7 @@ class storage():
     test_inputs = deque()
     results = {}
 
-{storage.test_inputs.append(garbage.example()) for i in range(200)}
+{storage.test_inputs.append(garbage.example()) for i in range(100)}
 
 def is_py3():
     return sys.version_info >= (3, 0)
@@ -353,6 +353,25 @@ class generators(object):
             else:
                 # just yield the whole thing if its not
                 yield g
+
+    @staticmethod
+    def every_possible_object(iterable):
+        """ like flatten, just more desperate """
+        try:
+            for i in iterable:
+                yield i
+                if isinstance(i, dict):
+                    for k in i:
+                        yield k
+                    for v in i.values():
+                        for i in generators.every_possible_object(v):
+                            yield i
+                elif isinstance(i, (list,tuple,set)):
+                    for i in generators.every_possible_object(i):
+                        yield i
+        except TypeError:
+            pass
+        yield iterable
 
 
 class FuzzTimeout(BaseException):
@@ -689,7 +708,7 @@ Parameters:
                         for combination in product(chunk, repeat=fuzz.args_needed):
                             yield combination
                     if fuzz.args_needed > 1:
-                        for i in product(storage.test_inputs, repeat=fuzz.args_needed):
+                        for i in product(generators.every_possible_object(storage.test_inputs), repeat=fuzz.args_needed):
                             yield i
                 test_variables = test_variables()
                 #print('using {} cached tests'.format(len(storage.test_inputs)))
