@@ -475,7 +475,7 @@ Or:
 
 """
 
-    def __init__(self, seconds=2, max_tests=1000000, verbose=False, **kwargs):
+    def __init__(self, seconds=2, max_tests=1000000, keep_testing=True, verbose=False, quiet=False, **kwargs):
         """ your general constructor to get things in line """
 
         # this is here if someone decides to use it as battle_tested(function)
@@ -485,12 +485,22 @@ Or:
         self.kwargs = kwargs
         self.tested = False
 
+        # needed to determine how quiet it will be
+        self.__verify_quiet__(quiet)
+        self.quiet = quiet
+
         # needed to determine how verbosly it will work
         self.__verify_verbose__(verbose)
-        self.verbose = verbose
+        self.verbose = False if self.quiet else verbose # quiet silences verbose mode
+
         # needed to determine the maximum time the tests can run
         self.__verify_seconds__(seconds)
         self.seconds = seconds
+
+        # determine whether to keep testing after finding a crash
+        self.__verify_keep_testing__(keep_testing)
+        self.keep_testing = keep_testing
+
         # needed to determine maximum number of tests it can
         self.__verify_max_tests__(max_tests)
         self.max_tests = max_tests
@@ -527,6 +537,12 @@ Or:
         """ ensures keep_testing is a valid argument """
         assert type(keep_testing) == bool, 'keep_testing needs to be a bool'
         assert keep_testing == True or keep_testing == False, 'invalid value for keep_testing'
+
+    @staticmethod
+    def __verify_quiet__(quiet):
+        """ ensures quiet is a valid argument """
+        assert type(quiet) == bool, 'quiet needs to be a bool'
+        assert quiet == True or quiet == False, 'invalid value for quiet'
 
     # results are composed like this
     # results[my_function]['unique_crashes']=[list_of_crashes]
@@ -620,7 +636,7 @@ Or:
     success_map = _success_map()
 
     @staticmethod
-    def fuzz(fn, seconds=3, max_tests=1000000, verbose=False, keep_testing=True):
+    def fuzz(fn, seconds=3, max_tests=1000000, verbose=False, keep_testing=True, quiet=False):
         """
 
 fuzz - battle_tested's primary weapon for testing functions.
@@ -652,6 +668,14 @@ Parameters:
         battle_tested.__verify_verbose__(verbose)
         battle_tested.__verify_max_tests__(max_tests)
         battle_tested.__verify_keep_testing__(keep_testing)
+        battle_tested.__verify_quiet__(quiet)
+
+        if quiet:
+            def print(*a,**k):
+                pass
+        else:
+            def print(*a,**k):
+                __builtins__.print(*a,**k)
 
         args_needed = function_arg_count(fn)
 
@@ -832,7 +856,8 @@ Parameters:
         if keep_testing:
             #examples_that_break = ('examples that break' if len(battle_tested.crash_map)>1 else 'example that broke')
             #print('found {} {} {}()'.format(len(battle_tested.crash_map),examples_that_break,fn.__name__))
-            battle_tested.print_stats(fn)
+            if not quiet:
+                battle_tested.print_stats(fn)
             #print('run crash_map() or success_map() to access the test results')
         else:
             print('battle_tested: no falsifying examples found')
@@ -847,7 +872,7 @@ Parameters:
             # only test the first time this function is called
             if not ('skip_test' in self.kwargs and self.kwargs['skip_test']):
                 # skip the test if it is explicitly turned off
-                self.fuzz(fn, seconds=self.seconds, max_tests=self.max_tests, verbose=self.verbose)
+                self.fuzz(fn, seconds=self.seconds, max_tests=self.max_tests, keep_testing=self.keep_testing, verbose=self.verbose, quiet=self.quiet)
             #self.tested = True
 
         def wrapper(*args, **kwargs):
@@ -890,28 +915,41 @@ if __name__ == '__main__':
     def sample(i):
         return []
 
-    @battle_tested(keep_testing=False, seconds=20)
+    @battle_tested(keep_testing=False)
     def sample2(a,b,c,d=''):
         t = a, b, c, d
 
     # test different speeds
-    @battle_tested(seconds=5)
+    @battle_tested()
     def arg1(a):
         return a
-    @battle_tested(seconds=5)
+    @battle_tested()
     def args2(a,b):
         return a+b
-    @battle_tested(seconds=5)
+    @battle_tested()
     def args3(a,b,c):
         return a+b+c
-    @battle_tested(seconds=5)
+    @battle_tested()
     def args4(a,b,c,d):
         return a+b+c+d
-    @battle_tested(seconds=5)
+    @battle_tested()
     def args5(a,b,c,d,e):
         return a+b+c+d+e
 
+    # test going quiet
+    print('going quiet')
+    def quiet_test_out():
+        pass
+    @battle_tested(keep_testing=False, quiet=True)
+    def quiet_test(a,b,c):
+        setattr(quiet_test_out, 'args', (a,b,c))
+    assert len(quiet_test_out.args) == 3, 'fuzzing quiet test failed'
 
+    quiet_lambda = lambda a,b,c:setattr(quiet_test_out, 'lambda_args', (a,b,c))
+    r = fuzz(quiet_lambda, quiet=True, keep_testing=False)
+    assert len(quiet_test_out.lambda_args) == 3, 'fuzzing quiet lambda failed'
+
+    print('quiet test complete')
 
     # proof that they only get tested once
     print(sample(4))
