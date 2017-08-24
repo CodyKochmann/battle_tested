@@ -670,19 +670,13 @@ Parameters:
         battle_tested.__verify_keep_testing__(keep_testing)
         battle_tested.__verify_quiet__(quiet)
 
-        if quiet:
-            def print(*a,**k):
-                pass
-        else:
-            def print(*a,**k):
-                __builtins__.print(*a,**k)
-
         args_needed = function_arg_count(fn)
 
         # generate a strategy that creates a list of garbage variables for each argument
         strategy = st.lists(elements=garbage, max_size=args_needed, min_size=args_needed)
 
-        print('testing: {0}()'.format(fn.__name__))
+        if not quiet:
+            print('testing: {0}()'.format(fn.__name__))
 
         battle_tested.crash_map.clear()
         battle_tested.success_map.clear()
@@ -692,17 +686,19 @@ Parameters:
         timer = generators.timer()
 
         def display_stats(overwrite_line=True):
-            print('tests: {:<8}  {:>6}/sec - {}s    '.format(
-                display_stats.count,
-                int(display_stats.count/next(display_stats.timer)),
-                int(display_stats.test_time-next(display_stats.timer)) if overwrite_line else 0
-            ), end=('\r' if overwrite_line else '\n'))
-            sys.stdout.flush()
+            if not display_stats.quiet:
+                print('tests: {:<8}  {:>6}/sec - {}s    '.format(
+                    display_stats.count,
+                    int(display_stats.count/next(display_stats.timer)),
+                    int(display_stats.test_time-next(display_stats.timer)) if overwrite_line else 0
+                ), end=('\r' if overwrite_line else '\n'))
+                sys.stdout.flush()
         display_stats.test_time = seconds
         display_stats.count = 0
         display_stats.timer = generators.timer()
         display_stats.average = generators.avg()
         display_stats.interval = IntervalTimer(0.16, display_stats)
+        display_stats.quiet = quiet
         display_stats.start = lambda:(next(display_stats.timer),display_stats.interval.start())
 
         ipython_tools.silence_traceback()
@@ -826,7 +822,8 @@ Parameters:
         except FuzzTimeout:
             pass
         except KeyboardInterrupt:
-            print('  stopping fuzz early...')
+            if not quiet:
+                print('  stopping fuzz early...')
         finally:
             display_stats.interval.stop()
             display_stats(False)
@@ -860,7 +857,8 @@ Parameters:
                 battle_tested.print_stats(fn)
             #print('run crash_map() or success_map() to access the test results')
         else:
-            print('battle_tested: no falsifying examples found')
+            if not quiet:
+                print('battle_tested: no falsifying examples found')
         return storage.results[fn]
 
 
