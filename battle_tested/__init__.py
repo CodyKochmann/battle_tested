@@ -465,20 +465,41 @@ Examples of Primary Uses:
 
     from battle_tested import fuzz
 
-    def test_function(a,b,c):
-        return c,b,a
+    def my_adder(a, b):
+        ''' switches the variables '''
+        return b + a
 
-    fuzz(test_function)
-    # or to collect tests
-    fuzz(test_function, keep_testing=True)
+    fuzz(my_adder) # returns a report of what works/breaks
 
 Or:
 
     from battle_tested import battle_tested
 
-    @battle_tested()
-    def test_function(a,b,c):
-        return c,b,a
+    @battle_tested(keep_testing=False, allow=(AssertionError,))
+    def my_strict_add(a, b):
+        ''' adds a and b together '''
+        assert isinstance(a, int), 'a needs to be an int'
+        assert isinstance(b, int), 'b needs to be an int'
+        return a + b
+
+    # This runs tests and halts the program if there is an error if that error
+    # isn't an AssertionError. This tests if you've written enough assertions.
+
+Parameters:
+
+    fn           - the function to be fuzzed (must accept at least one argument)
+    seconds      - maximum time battle_tested is allowed to fuzz the function
+    max_tests    - maximum number of tests battle_tested will run before exiting
+                   (if the time limit doesn't come first)
+    verbose      - setting this to False makes battle_tested raise the first
+                   exception that wasn't specifically allowed in the allow option
+    keep_testing - setting this to True allows battle_tested to keep testing
+                   even after it finds the first falsifying example, the results
+                   can be accessed with crash_map() and success_map()
+    quiet        - setting this to True silences all of the outputs coming from
+                   the test
+    allow        - this can be a tuple of exception types that you want
+                   battle_tested to skip over in its tests
 
 """
 
@@ -558,7 +579,7 @@ Or:
     @staticmethod
     def __verify_allow__(allow):
         """ ensures allow is a valid argument """
-        assert type(allow) in (tuple,list), 'allow needs to be a tuple or list'
+        assert type(allow) == tuple, 'allow needs to be a tuple of exceptions'
         assert all(issubclass(i, BaseException) for i in allow), 'allow only accepts exceptions as its members'
 
     # results are composed like this
@@ -660,13 +681,23 @@ fuzz - battle_tested's primary weapon for testing functions.
 
 Example Usage:
 
-    def my_function(a, b):
+    def my_adder(a, b):
         ''' switches the variables '''
-        return b, a
+        return b + a
 
-    fuzz(my_function)                     # runs a quick test to find breaks
-    fuzz(my_function, keep_testing=True)  # runs tests and collects the outcomes
-                                          # in `crash_map()` and `success_map()`
+    fuzz(my_adder) # returns a report of what works/breaks
+
+    # or
+
+    def my_strict_add(a, b):
+        ''' adds a and b together '''
+        assert isinstance(a, int), 'a needs to be an int'
+        assert isinstance(b, int), 'b needs to be an int'
+        return a + b
+
+    # This runs tests and halts the program if there is an error if that error
+    # isn't an AssertionError. This tests if you've written enough assertions.
+    fuzz(my_strict_add, keep_testing=False, allow=(AssertionError,))
 
 Parameters:
 
@@ -674,11 +705,15 @@ Parameters:
     seconds      - maximum time battle_tested is allowed to fuzz the function
     max_tests    - maximum number of tests battle_tested will run before exiting
                    (if the time limit doesn't come first)
-    verbose      - setting this to True dumps the parameters being tested to
-                   stdout as they are being generated
+    verbose      - setting this to False makes battle_tested raise the first
+                   exception that wasn't specifically allowed in the allow option
     keep_testing - setting this to True allows battle_tested to keep testing
                    even after it finds the first falsifying example, the results
                    can be accessed with crash_map() and success_map()
+    quiet        - setting this to True silences all of the outputs coming from
+                   the test
+    allow        - this can be a tuple of exception types that you want
+                   battle_tested to skip over in its tests
 """
         battle_tested.__verify_function__(fn)
         battle_tested.__verify_seconds__(seconds)
