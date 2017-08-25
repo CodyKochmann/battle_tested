@@ -103,7 +103,14 @@ class storage():
     test_inputs = deque()
     results = {}
 
-{storage.test_inputs.append(garbage.example()) for i in range(100)}
+class suppress():
+    """ suppress exceptions coming from certain code blocks """
+    def __init__(self, *exceptions):
+        self._exceptions = exceptions
+    def __enter__(self):
+        pass
+    def __exit__(self, exctype, excinst, exctb):
+        return exctype is not None and issubclass(exctype, self._exceptions)
 
 def is_py3():
     return sys.version_info >= (3, 0)
@@ -475,7 +482,7 @@ Or:
 
 """
 
-    def __init__(self, seconds=2, max_tests=1000000, keep_testing=True, verbose=False, quiet=False, **kwargs):
+    def __init__(self, seconds=2, max_tests=1000000, keep_testing=True, verbose=False, quiet=False, allow=(), **kwargs):
         """ your general constructor to get things in line """
 
         # this is here if someone decides to use it as battle_tested(function)
@@ -504,6 +511,10 @@ Or:
         # needed to determine maximum number of tests it can
         self.__verify_max_tests__(max_tests)
         self.max_tests = max_tests
+
+        # determine what kind of exceptions are allowed
+        self.__verify_allow__(allow)
+        self.allow = allow
 
     @staticmethod
     def __verify_seconds__(seconds):
@@ -543,6 +554,12 @@ Or:
         """ ensures quiet is a valid argument """
         assert type(quiet) == bool, 'quiet needs to be a bool'
         assert quiet == True or quiet == False, 'invalid value for quiet'
+
+    @staticmethod
+    def __verify_allow__(allow):
+        """ ensures allow is a valid argument """
+        assert type(allow) in (tuple,list), 'allow needs to be a tuple or list'
+        assert all(issubclass(i, BaseException) for i in allow), 'allow only accepts exceptions as its members'
 
     # results are composed like this
     # results[my_function]['unique_crashes']=[list_of_crashes]
@@ -636,7 +653,7 @@ Or:
     success_map = _success_map()
 
     @staticmethod
-    def fuzz(fn, seconds=3, max_tests=1000000, verbose=False, keep_testing=True, quiet=False):
+    def fuzz(fn, seconds=3, max_tests=1000000, verbose=False, keep_testing=True, quiet=False, allow=()):
         """
 
 fuzz - battle_tested's primary weapon for testing functions.
@@ -669,6 +686,7 @@ Parameters:
         battle_tested.__verify_max_tests__(max_tests)
         battle_tested.__verify_keep_testing__(keep_testing)
         battle_tested.__verify_quiet__(quiet)
+        battle_tested.__verify_allow__(allow)
 
         args_needed = function_arg_count(fn)
 
@@ -719,6 +737,8 @@ Parameters:
         def fuzz(given_args):
             if fuzz.first_run:
                 fuzz.first_run = False
+                if len(storage.test_inputs)<100: # cache a few examples if there is nothing
+                    {storage.test_inputs.append(garbage.example()) for i in range(100)}
                 # start the display interval
                 display_stats.start()
                 # start the countdown for timeout
@@ -761,6 +781,8 @@ Parameters:
                     # add the output type to the output collection
                     storage.results[fn]['output_types'].add(type(out))
                     battle_tested.success_map.add(tuple(type(i) for i in arg_list))
+                except fuzz.allow as ex:
+                    pass
                 except Exception as ex:
                     ex_message = ex.args[0] if (
                         hasattr(ex, 'args') and len(ex.args) > 0
@@ -807,6 +829,7 @@ Parameters:
         fuzz.timestopper = Timer(seconds, lambda:setattr(fuzz,'has_time',False))
         fuzz.exceptions = deque()
         fuzz.args_needed = args_needed
+        fuzz.allow = allow
 
         # run the test
         try:
@@ -870,7 +893,7 @@ Parameters:
             # only test the first time this function is called
             if not ('skip_test' in self.kwargs and self.kwargs['skip_test']):
                 # skip the test if it is explicitly turned off
-                self.fuzz(fn, seconds=self.seconds, max_tests=self.max_tests, keep_testing=self.keep_testing, verbose=self.verbose, quiet=self.quiet)
+                self.fuzz(fn, seconds=self.seconds, max_tests=self.max_tests, keep_testing=self.keep_testing, verbose=self.verbose, quiet=self.quiet, allow=self.allow)
             #self.tested = True
 
         def wrapper(*args, **kwargs):
@@ -918,21 +941,47 @@ if __name__ == '__main__':
         t = a, b, c, d
 
     # test different speeds
+    @battle_tested(seconds=1)
+    def arg1_1sec(a):
+        return a
     @battle_tested()
     def arg1(a):
         return a
+    @battle_tested(seconds=1)
+    def args2_1sec(a,b):
+        return a+b
     @battle_tested()
     def args2(a,b):
         return a+b
+    @battle_tested(seconds=1)
+    def args3_1sec(a,b,c):
+        return a+b+c
     @battle_tested()
     def args3(a,b,c):
         return a+b+c
+    @battle_tested(seconds=1)
+    def args4_1sec(a,b,c,d):
+        return a+b+c+d
     @battle_tested()
     def args4(a,b,c,d):
         return a+b+c+d
+    @battle_tested(seconds=1)
+    def args5_1sec(a,b,c,d,e):
+        return a+b+c+d+e
     @battle_tested()
     def args5(a,b,c,d,e):
         return a+b+c+d+e
+
+    # test the allow option
+    @battle_tested(allow=(AssertionError,))
+    def allowed_to_assert(a,b):
+        assert a==b, 'a needs to equal b'
+    @battle_tested(allow=(AssertionError,), keep_testing=False)
+    def allowed_to_assert_and_stop_on_fail(a,b):
+        assert a==b, 'a needs to equal b'
+    fuzz(lambda i:max(i), allow=(ValueError,))
+    fuzz(lambda i:max(i), keep_testing=False, allow=(ValueError,TypeError))
+
 
     # test going quiet
     print('going quiet')
