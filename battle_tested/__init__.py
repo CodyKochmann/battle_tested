@@ -740,10 +740,11 @@ Parameters:
 
         def display_stats(overwrite_line=True):
             if not display_stats.quiet:
-                print('tests: {:<8}  {:>6}/sec - {}s    '.format(
+                print('tests: {:<8}  {:>6}/sec {} {}s    '.format(
                     display_stats.count,
                     int(display_stats.count/next(display_stats.timer)),
-                    int(display_stats.test_time-next(display_stats.timer)) if overwrite_line else 0
+                    '-' if overwrite_line else 'in',
+                    int(display_stats.test_time-next(display_stats.timer))+1 if overwrite_line else display_stats.test_time
                 ), end=('\r' if overwrite_line else '\n'))
                 sys.stdout.flush()
         display_stats.test_time = seconds
@@ -764,6 +765,9 @@ Parameters:
             'exception_types':set(),
             'unique_crashes':dict()
         }
+
+        fn.fuzz_time = time()
+        fn.fuzz_id = len(storage.results.keys())
 
         gc_interval = IntervalTimer(3, gc)
 
@@ -917,6 +921,14 @@ Parameters:
         else:
             if not quiet:
                 print('battle_tested: no falsifying examples found')
+
+        # try to save the fields to the function object
+        try:
+            for f in storage.results[fn]._fields:
+                setattr(fn, f, getattr(storage.results[fn], f))
+        except:
+            pass
+
         return storage.results[fn]
 
 
@@ -931,23 +943,27 @@ Parameters:
                 self.fuzz(fn, seconds=self.seconds, max_tests=self.max_tests, keep_testing=self.keep_testing, verbose=self.verbose, quiet=self.quiet, allow=self.allow)
             #self.tested = True
 
-        def wrapper(*args, **kwargs):
-            try:
-                out = fn(*args, **kwargs)
-            except Exception as e:
-                # log the error
-                if 'logger' in self.kwargs:
-                    assert callable(self.kwargs['logger']), "battle_tested.logger needs to be a callable log function, not: {0}".format(repr(self.kwargs['logger']))
-                    self.kwargs['logger'](e)
-                else:
-                    logging.exception(e)
-                # only raise the error if there isnt a default_output
-                if 'default_output' in self.kwargs:
-                    out = self.kwargs['default_output']
-                else:
-                    raise e
-            return out
-        return wrapper
+        if any(i in self.kwargs for i in ('logger','default_output')):
+            # only wrap if needed
+            def wrapper(*args, **kwargs):
+                try:
+                    out = fn(*args, **kwargs)
+                except Exception as e:
+                    # log the error
+                    if 'logger' in self.kwargs:
+                        assert callable(self.kwargs['logger']), "battle_tested.logger needs to be a callable log function, not: {0}".format(repr(self.kwargs['logger']))
+                        self.kwargs['logger'](e)
+                    else:
+                        logging.exception(e)
+                    # only raise the error if there isnt a default_output
+                    if 'default_output' in self.kwargs:
+                        out = self.kwargs['default_output']
+                    else:
+                        raise e
+                return out
+            return wrapper
+        else:
+            return fn
 
 # make fuzz its own independent function
 fuzz = battle_tested.fuzz
@@ -1095,5 +1111,8 @@ if __name__ == '__main__':
     assert len(r.output_types) == 0, 'fuzzing fuzz() changed expected behavior'
     assert len(r.successful_input_types) == 0, 'fuzzing fuzz() changed expected behavior'
     assert len(r.unique_crashes) == 1, 'fuzzing fuzz() changed expected behavior'
+
+    for f in storage.results.keys():
+        print(f.__module__, f.__name__, f.fuzz_id)
 
     print('finished running battle_tested.py')
