@@ -59,7 +59,8 @@ def hashable_strategy(s):
 def multi_strategy(*a):
     """ returns a strategy with multiple strategies nested underneath since
         strategies.one_of flattened the nested strats for performance """
-    return st.none().map(lambda i, o=st.one_of(*a):o.example())
+    return st.none().map(lambda i, o=st.one_of(*a): o.example())
+
 
 garbage = (
     st.binary(),
@@ -78,7 +79,7 @@ garbage = (
 
 hashable_strategies = tuple(s for s in garbage if hashable_strategy(s))
 
-garbage+=(
+garbage += (
     # iterables
     st.lists(elements=multi_strategy(*garbage)),
     st.lists(elements=multi_strategy(*garbage)).map(tuple),
@@ -102,6 +103,31 @@ class storage():
     """ where battle_tested stores things """
     test_inputs = deque()
     results = {}
+
+    @staticmethod
+    def build_new_examples(how_many=100):
+        """ use this to add new examples to battle_tested's pre-loaded examples in storage.test_inputs """
+        assert type(how_many) == int, 'build_new_examples needs a positive int as the argument'
+        assert how_many > 0, 'build_new_examples needs a positive int as the argument'
+        {storage.test_inputs.append(storage.build_new_examples.garbage.example()) for i in range(how_many)}
+
+    @staticmethod
+    def refresh_test_inputs():
+        """ wipe battle_tested test_inputs and cache new examples """
+        storage.test_inputs.clear()
+        storage.build_new_examples()
+
+storage.build_new_examples.garbage = garbage
+
+class io_example():
+    """ demonstrates the behavior of input and output """
+    def __init__(self, input_args, output):
+        self.input = input_args
+        self.output = output
+    def __repr__(self):
+        return '{} -> {}'.format(self.input,self.output)
+    def __repr__(self):
+        return '{} -> {}'.format(self.input,self.output)
 
 class suppress():
     """ suppress exceptions coming from certain code blocks """
@@ -503,7 +529,7 @@ Parameters:
 
 """
 
-    def __init__(self, seconds=2, max_tests=1000000, keep_testing=True, verbose=False, quiet=False, allow=(), **kwargs):
+    def __init__(self, seconds=2, max_tests=1000000, keep_testing=True, verbose=False, quiet=False, allow=(), strategy=garbage, **kwargs):
         """ your general constructor to get things in line """
 
         # this is here if someone decides to use it as battle_tested(function)
@@ -536,6 +562,10 @@ Parameters:
         # determine what kind of exceptions are allowed
         self.__verify_allow__(allow)
         self.allow = allow
+
+        # determine what kind of strategy to use
+        self.__verify_strategy__(strategy)
+        self.strategy = strategy
 
     @staticmethod
     def __verify_seconds__(seconds):
@@ -581,6 +611,12 @@ Parameters:
         """ ensures allow is a valid argument """
         assert type(allow) == tuple, 'allow needs to be a tuple of exceptions'
         assert all(issubclass(i, BaseException) for i in allow), 'allow only accepts exceptions as its members'
+
+    @staticmethod
+    def __verify_strategy__(strategy):
+        """ ensures strategy is a valid argument """
+        assert 'strategy' in type(strategy).__name__.lower(), 'strategy needs to be a hypothesis strategy, not {}'.format(strategy)
+        assert hasattr(strategy,'example'), 'strategy needs to be a hypothesis strategy, not {}'.format(strategy)
 
     # results are composed like this
     # results[my_function]['unique_crashes']=[list_of_crashes]
@@ -674,7 +710,7 @@ Parameters:
     success_map = _success_map()
 
     @staticmethod
-    def fuzz(fn, seconds=3, max_tests=1000000, verbose=False, keep_testing=True, quiet=False, allow=()):
+    def fuzz(fn, seconds=3, max_tests=1000000, verbose=False, keep_testing=True, quiet=False, allow=(), strategy=garbage):
         """
 
 fuzz - battle_tested's primary weapon for testing functions.
@@ -722,11 +758,14 @@ Parameters:
         battle_tested.__verify_keep_testing__(keep_testing)
         battle_tested.__verify_quiet__(quiet)
         battle_tested.__verify_allow__(allow)
+        battle_tested.__verify_strategy__(strategy)
 
         args_needed = function_arg_count(fn)
 
+        using_native_garbage = hash(strategy) == hash(garbage)
+
         # generate a strategy that creates a list of garbage variables for each argument
-        strategy = st.lists(elements=garbage, max_size=args_needed, min_size=args_needed)
+        strategy = st.lists(elements=strategy, max_size=args_needed, min_size=args_needed)
 
         if not quiet:
             print('testing: {0}()'.format(fn.__name__))
@@ -775,28 +814,36 @@ Parameters:
         @given(strategy)
         def fuzz(given_args):
             if fuzz.first_run:
-                fuzz.first_run = False
+                fn.successful_io = deque(maxlen=256)
+            if fuzz.using_native_garbage and fuzz.first_run:
+                #print('using native garbage')
                 if len(storage.test_inputs)<100: # cache a few examples if there is nothing
-                    {storage.test_inputs.append(garbage.example()) for i in range(100)}
-                # start the display interval
-                display_stats.start()
-                # start the countdown for timeout
-                fuzz.timestopper.start()
+                    storage.refresh_test_inputs()
+                #print('found {} cached examples'.format(len(storage.test_inputs)))
                 def test_variables():
-                    for chunk in generators.chunks(storage.test_inputs,size=fuzz.args_needed):
+                    for chunk in generators.chunks(chain(storage.test_inputs,reversed(storage.test_inputs)),size=fuzz.args_needed):
                         for combination in product(chunk, repeat=fuzz.args_needed):
                             yield combination
-                    if fuzz.args_needed > 1:
-                        for i in product(generators.every_possible_object(storage.test_inputs), repeat=fuzz.args_needed):
-                            yield i
+                    #if fuzz.args_needed > 1:
+                    #    for i in product(generators.every_possible_object(storage.test_inputs), repeat=fuzz.args_needed):
+                    #        yield i
                 test_variables = test_variables()
                 #print('using {} cached tests'.format(len(storage.test_inputs)))
             else:
                 #print('reverting to hypothesis generation after {} tests'.format(display_stats.count))
-                for i in given_args:
-                    storage.test_inputs.append(i)
-                # use product to make more tests out of what hypothesis could make
-                test_variables = product(given_args, repeat=len(given_args))
+                if fuzz.using_native_garbage:
+                    for i in given_args:
+                        storage.test_inputs.append(i)
+                    # use product to make more tests out of what hypothesis could make
+                    test_variables = product(given_args, repeat=len(given_args))
+                else:
+                    test_variables = [given_args,]
+            if fuzz.first_run:
+                fuzz.first_run = False
+                # start the display interval
+                display_stats.start()
+                # start the countdown for timeout
+                fuzz.timestopper.start()
 
             # use product to make more tests out of what hypothesis could make
             for arg_list in test_variables:
@@ -820,6 +867,10 @@ Parameters:
                     # add the output type to the output collection
                     storage.results[fn]['output_types'].add(type(out))
                     battle_tested.success_map.add(tuple(type(i) for i in arg_list))
+                    try:
+                        fn.successful_io.append(io_example(arg_list, out))
+                    except:
+                        pass
                 except fuzz.allow as ex:
                     pass
                 except Exception as ex:
@@ -869,6 +920,7 @@ Parameters:
         fuzz.exceptions = deque()
         fuzz.args_needed = args_needed
         fuzz.allow = allow
+        fuzz.using_native_garbage = using_native_garbage
 
         # run the test
         try:
@@ -928,7 +980,19 @@ Parameters:
                 setattr(fn, f, getattr(storage.results[fn], f))
         except:
             pass
-
+        # try to store the unique crashes as readable attributes
+        try:
+            for crash in fn.unique_crashes:
+                try:
+                    setattr(fn.unique_crashes, '{}_{}'.format(crash.err_type.__name__, [x.strip() for x in crash.trace.split(', ') if x.startswith('line ')][-1].replace(' ','_')), crash)
+                except:
+                    pass
+                try:
+                    setattr(storage.results[fn], '{}_{}'.format(crash.err_type.__name__, [x.strip() for x in crash.trace.split(', ') if x.startswith('line ')][-1].replace(' ','_')), crash)
+                except:
+                    pass
+        except:
+            pass
         return storage.results[fn]
 
 
@@ -940,7 +1004,7 @@ Parameters:
             # only test the first time this function is called
             if not ('skip_test' in self.kwargs and self.kwargs['skip_test']):
                 # skip the test if it is explicitly turned off
-                self.fuzz(fn, seconds=self.seconds, max_tests=self.max_tests, keep_testing=self.keep_testing, verbose=self.verbose, quiet=self.quiet, allow=self.allow)
+                self.fuzz(fn, seconds=self.seconds, max_tests=self.max_tests, keep_testing=self.keep_testing, verbose=self.verbose, quiet=self.quiet, allow=self.allow, strategy=self.strategy)
             #self.tested = True
 
         if any(i in self.kwargs for i in ('logger','default_output')):
@@ -980,6 +1044,15 @@ def success_map():
     return tuple(sorted(battle_tested.success_map, key=lambda i:i[0].__name__))
 
 if __name__ == '__main__':
+    # try the custom example syntax
+    @battle_tested(strategy=st.text(),verbose=True)
+    def custom_strategy(a,b):
+        return a in b
+
+    def custom_fuzz_strategy(a,b):
+        return a in b
+    fuzz(custom_fuzz_strategy, strategy=st.text(), verbose=True)
+
     #======================================
     #  Examples using the wrapper syntax
     #======================================
