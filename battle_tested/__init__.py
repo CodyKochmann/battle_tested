@@ -614,9 +614,16 @@ Parameters:
 
     @staticmethod
     def __verify_strategy__(strategy):
-        """ ensures strategy is a valid argument """
-        assert 'strategy' in type(strategy).__name__.lower(), 'strategy needs to be a hypothesis strategy, not {}'.format(strategy)
-        assert hasattr(strategy,'example'), 'strategy needs to be a hypothesis strategy, not {}'.format(strategy)
+        """ ensures strategy is a strategy or tuple of strategies """
+        def is_strategy(strategy):
+            assert 'strategy' in type(strategy).__name__.lower(), 'strategy needs to be a hypothesis strategy, not {}'.format(strategy)
+            assert hasattr(strategy,'example'), 'strategy needs to be a hypothesis strategy, not {}'.format(strategy)
+            return True
+        if type(strategy) == tuple:
+            assert len(strategy)>0, 'strategy cannot be an empty tuple, please define at least one'
+            assert all(is_strategy(i) for i in strategy), 'not all members in strategy were valid hypothesis strategies'
+        else:
+            is_strategy(strategy)
 
     # results are composed like this
     # results[my_function]['unique_crashes']=[list_of_crashes]
