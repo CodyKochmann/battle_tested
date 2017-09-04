@@ -786,11 +786,12 @@ Parameters:
 
         def display_stats(overwrite_line=True):
             if not display_stats.quiet:
+                now = next(display_stats.timer)
                 print('tests: {:<8}  {:>6}/sec {} {}s    '.format(
                     display_stats.count,
-                    int(display_stats.count/next(display_stats.timer)),
+                    int(display_stats.count/(now if now > 0 else 0.001)),
                     '-' if overwrite_line else 'in',
-                    int(display_stats.test_time-next(display_stats.timer))+1 if overwrite_line else display_stats.test_time
+                    int(display_stats.test_time-now)+1 if overwrite_line else display_stats.test_time
                 ), end=('\r' if overwrite_line else '\n'))
                 sys.stdout.flush()
         display_stats.test_time = seconds
