@@ -771,8 +771,13 @@ Parameters:
 
         using_native_garbage = hash(strategy) == hash(garbage)
 
-        # generate a strategy that creates a list of garbage variables for each argument
-        strategy = st.lists(elements=strategy, max_size=args_needed, min_size=args_needed)
+        if type(strategy) == tuple:
+            assert len(strategy) == args_needed, 'invalid number of strategies, needed {} got {}'.format(args_needed, len(strategy))
+            print('using {} custom strategies - {}'.format(len(strategy),strategy))
+            strategy = st.builds(lambda *x: list(x), *strategy)
+        else:
+            # generate a strategy that creates a list of garbage variables for each argument
+            strategy = st.lists(elements=strategy, max_size=args_needed, min_size=args_needed)
 
         if not quiet:
             print('testing: {0}()'.format(fn.__name__))
@@ -1052,14 +1057,26 @@ def success_map():
     return tuple(sorted(battle_tested.success_map, key=lambda i:i[0].__name__))
 
 if __name__ == '__main__':
-    # try the custom example syntax
-    @battle_tested(strategy=st.text(),verbose=True)
-    def custom_strategy(a,b):
+    # try the custom strategy syntax
+    @battle_tested(strategy=st.text())
+    def custom_text_strategy(a,b):
         return a in b
 
-    def custom_fuzz_strategy(a,b):
+    def custom_text_fuzz_strategy(a,b):
         return a in b
-    fuzz(custom_fuzz_strategy, strategy=st.text(), verbose=True)
+    fuzz(custom_text_fuzz_strategy, strategy=st.text())
+
+    # try the multiple custom strategy syntax
+    @battle_tested(strategy=(st.text(), st.integers()))
+    def custom_text_int_strategy(a,b):
+        assert isinstance(a, str), 'a needs to be text'
+        assert isinstance(b, int), 'b needs to be an int'
+        return a+b
+
+
+    def custom_text_int_fuzz_strategy(a,b):
+        return a in b
+    fuzz(custom_text_fuzz_strategy, strategy=(st.integers(),st.text()))
 
     #======================================
     #  Examples using the wrapper syntax
