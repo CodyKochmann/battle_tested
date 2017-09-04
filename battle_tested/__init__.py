@@ -827,7 +827,10 @@ Parameters:
         @given(strategy)
         def fuzz(given_args):
             if fuzz.first_run:
+                # stores examples that succeed and return something other than None
                 fn.successful_io = deque(maxlen=256)
+                # stores examples that return None
+                fn.none_successful_io = deque(maxlen=256)
             if fuzz.using_native_garbage and fuzz.first_run:
                 #print('using native garbage')
                 if len(storage.test_inputs)<100: # cache a few examples if there is nothing
@@ -881,7 +884,7 @@ Parameters:
                     storage.results[fn]['output_types'].add(type(out))
                     battle_tested.success_map.add(tuple(type(i) for i in arg_list))
                     try:
-                        fn.successful_io.append(io_example(arg_list, out))
+                        (fn.none_successful_io if out is None else fn.successful_io).append(io_example(arg_list, out))
                     except:
                         pass
                 except fuzz.allow as ex:
@@ -987,6 +990,13 @@ Parameters:
             if not quiet:
                 print('battle_tested: no falsifying examples found')
 
+        # merge the io maps
+        for i in fn.none_successful_io:
+            if len(fn.successful_io)<fn.successful_io.maxlen:
+                fn.successful_io.append(i)
+        # remove io map with None examples
+        del fn.none_successful_io
+
         # try to save the fields to the function object
         try:
             for f in storage.results[fn]._fields:
@@ -1001,7 +1011,7 @@ Parameters:
                 except:
                     pass
                 try:
-                    setattr(storage.results[fn], '{}_{}'.format(crash.err_type.__name__, [x.strip() for x in crash.trace.split(', ') if x.startswith('line ')][-1].replace(' ','_')), crash)
+                    setattr(storage.results[fn].unique_crashes, '{}_{}'.format(crash.err_type.__name__, [x.strip() for x in crash.trace.split(', ') if x.startswith('line ')][-1].replace(' ','_')), crash)
                 except:
                     pass
         except:
@@ -1058,9 +1068,16 @@ def success_map():
 
 if __name__ == '__main__':
     # try the custom strategy syntax
-    @battle_tested(strategy=st.text())
+    @battle_tested(strategy=st.text(),max_tests=50)
     def custom_text_strategy(a,b):
-        return a in b
+        if len(a) == 0:
+            return None
+        else:
+            return a in b
+
+    print(dir(custom_text_strategy))
+    for i in custom_text_strategy.successful_io:
+        print(i)
 
     def custom_text_fuzz_strategy(a,b):
         return a in b
