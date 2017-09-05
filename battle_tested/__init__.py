@@ -1066,6 +1066,34 @@ def success_map():
     '''returns a map of data types that were able to get through the function without crashing'''
     return tuple(sorted(battle_tested.success_map, key=lambda i:i[0].__name__))
 
+def function_versions(fn):
+    ''' returns all tested versions of the given function '''
+    for f in storage.results.keys():
+        if f.__name__ == fn.__name__ and f.__module__ == fn.__module__:
+            yield f
+
+def time_io(fn,args,rounds=1000):
+    ''' time how long it takes for a function to run through given args '''
+    tests = range(rounds)
+    args = tuple(args) # solidify this so we can run it multiple times
+    start = time()
+    for t in tests:
+        for a in args:
+            fn(*a)
+    return time()-start
+
+def time_all_versions_of(fn):
+    ''' time how long each version of a function takes to run through the saved io '''
+    print('\ntiming all versions of {}'.format(fn.__name__))
+    for f in function_versions(fn):
+        print('\n{}\n\n{}'.format('-'*60,getsource(f)))
+        print('{:.10f}'.format(time_io(f,(io.input for io in f.successful_io))),'seconds')
+        #print(time_io(f,(io.input for io in f.successful_io)),'seconds with {} runs'.format(len(f.successful_io)*1000))
+        #    for ff in function_versions(fn):
+        #    #print(time_io(f,(io.input for io in ff.successful_io)),'seconds')
+    print('\n{}'.format('-'*60))
+
+
 if __name__ == '__main__':
     # try the custom strategy syntax
     @battle_tested(strategy=st.text(),max_tests=50)
