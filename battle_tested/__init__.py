@@ -61,6 +61,15 @@ def hashable_strategy(s):
     else:
         return True
 
+def replace_strategy_repr(strat, new_repr):
+    """ replaces a strategy's repr and str functions with a custom one """
+    class custom_repr_strategy(type(strat)):
+        __repr__ = new_repr
+        __str__ = new_repr
+    return custom_repr_strategy(
+        strategies=strat.original_strategies
+    )
+
 def build_garbage_strategy():
     ''' builds battle_tested's primary strategy '''
     basics = (
@@ -106,7 +115,8 @@ def build_garbage_strategy():
 
     return st.one_of(any_basics(), any_iterables())
 
-garbage = build_garbage_strategy()
+garbage = replace_strategy_repr(build_garbage_strategy(), lambda s:'<garbage>')
+
 
 class storage():
     """ where battle_tested stores things """
