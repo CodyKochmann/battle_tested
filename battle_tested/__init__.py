@@ -42,8 +42,11 @@ from time import time
 from stricttuple import stricttuple
 from collections import deque
 from itertools import chain, product
+from random import choice
 
-__all__ = 'battle_tested', 'fuzz', 'disable_traceback', 'enable_traceback', 'garbage', 'crash_map', 'success_map', 'results', 'stats', 'print_stats'
+
+__all__ = 'battle_tested', 'fuzz', 'disable_traceback', 'enable_traceback', 'garbage', 'crash_map', 'success_map', 'results', 'stats', 'print_stats', 'function_versions', 'time_all_versions_of'
+
 
 def hashable_strategy(s):
     """ returns true if the input is a hash-able hypothesis strategy """
@@ -59,8 +62,7 @@ def hashable_strategy(s):
 def multi_strategy(*a):
     """ returns a strategy with multiple strategies nested underneath since
         strategies.one_of flattened the nested strats for performance """
-    return st.none().map(lambda i, o=st.one_of(*a): o.example())
-
+    return st.builds(lambda *inputs:choice(inputs), *a)
 
 garbage = (
     st.binary(),
