@@ -30,7 +30,7 @@ Or:
 """
 
 from __future__ import print_function, unicode_literals
-from functools import wraps
+from functools import wraps, partial
 from prettytable import PrettyTable
 import logging
 from hypothesis import given, strategies as st, settings, Verbosity, unlimited
@@ -53,53 +53,60 @@ def hashable_strategy(s):
     assert hasattr(s, 'example'), 'hashable_strategy needs a strategy argument'
     try:
         for i in range(10):
-            hash(s.example())
+            sample = s.example()
+            hash(sample)
+            assert type(sample) != dict
     except:
         return False
     else:
         return True
 
-def multi_strategy(*a):
-    """ returns a strategy with multiple strategies nested underneath since
-        strategies.one_of flattened the nested strats for performance """
-    return st.builds(lambda *inputs:choice(inputs), *a)
+def build_garbage_strategy():
+    ''' builds battle_tested's primary strategy '''
+    basics = (
+        st.binary(),
+        st.booleans(),
+        st.characters(),
+        st.complex_numbers(),
+        st.floats(),
+        st.fractions(),
+        st.integers(),
+        st.none(),
+        st.text(),
+        st.uuids(),
+        st.dictionaries(keys=st.text(), values=st.text())
+    )
 
-garbage = (
-    st.binary(),
-    st.booleans(),
-    st.characters(),
-    st.complex_numbers(),
-    st.floats(),
-    st.fractions(),
-    st.integers(),
-    st.none(),
-    st.text(),
-    st.tuples(),
-    st.uuids(),
-    st.dictionaries(keys=st.text(), values=st.text())
-)
+    hashables = tuple(s for s in basics if hashable_strategy(s))
 
-hashable_strategies = tuple(s for s in garbage if hashable_strategy(s))
+    # returns a strategy with only basic values
+    any_basics = partial(st.one_of, *basics)
+    # returns a strategy with only hashable values
+    any_hashables = partial(st.one_of, *hashables)
 
-garbage += (
-    # iterables
-    st.lists(elements=multi_strategy(*garbage)),
-    st.lists(elements=multi_strategy(*garbage)).map(tuple),
-    st.lists(elements=multi_strategy(*garbage)).map(iter),
-    st.sets(elements=multi_strategy(*hashable_strategies)),
-    st.dictionaries(keys=st.text(), values=multi_strategy(*garbage)),
-    st.dictionaries(keys=multi_strategy(*hashable_strategies), values=multi_strategy(*garbage)),
-    # single element iterables
-    multi_strategy(*chain(
-        ( st.lists(elements=i, min_size=1) for i in garbage ),
-        ( st.lists(elements=i, min_size=1).map(tuple) for i in garbage ),
-        ( st.lists(elements=i, min_size=1).map(iter) for i in garbage ),
-        ( st.sets(elements=i, min_size=1) for i in hashable_strategies ),
-        ( st.dictionaries(keys=st.text(min_size=1), values=i, min_size=1) for i in garbage )
-    ))
-)
+    # returns a strategy of lists with basic values
+    basic_lists = partial(st.lists, elements=any_basics())
+    # returns a strategy of lists with hashable values
+    hashable_lists = partial(st.lists, elements=any_basics())
 
-garbage=st.one_of(*garbage)
+    iterable_strategies = (
+        # iterables with the same type inside
+        st.builds(lambda a:[i for i in a if type(a[0])==type(i)], basic_lists(min_size=3)),
+        st.builds(lambda a:tuple(i for i in a if type(a[0])==type(i)), basic_lists(min_size=3)),
+        #st.builds(lambda a:{i for i in a if type(a[0])==type(i)}, hashable_lists(min_size=3)),
+        st.iterables(elements=any_basics()),
+        #st.builds(lambda a:(i for i in a if type(a[0])==type(i)), basic_lists(min_size=3)),
+        # garbage filled iterables
+        st.builds(tuple, basic_lists()),
+        #st.builds(set, hashable_lists()),
+        st.dictionaries(keys=any_hashables(), values=any_basics())
+    )
+    # returns a strategy with only iterable values
+    any_iterables = partial(st.one_of, *iterable_strategies)
+
+    return st.one_of(any_basics(), any_iterables())
+
+garbage = build_garbage_strategy()
 
 class storage():
     """ where battle_tested stores things """
@@ -1260,7 +1267,7 @@ if __name__ == '__main__':
     print('fuzzing fuzz')
     r = fuzz(fuzz,seconds=10)
 
-    assert len(r.crash_input_types) > 300 , 'fuzzing fuzz() changed expected behavior'
+    assert len(r.crash_input_types) > 50 , 'fuzzing fuzz() changed expected behavior'
     assert len(r.exception_types) == 1, 'fuzzing fuzz() changed expected behavior'
     assert len(r.iffy_input_types) == 0, 'fuzzing fuzz() changed expected behavior'
     assert len(r.output_types) == 0, 'fuzzing fuzz() changed expected behavior'
