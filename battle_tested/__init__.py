@@ -43,9 +43,31 @@ from stricttuple import stricttuple
 from collections import deque
 from itertools import chain, product
 from random import choice
-
+import signal
 
 __all__ = 'battle_tested', 'fuzz', 'disable_traceback', 'enable_traceback', 'garbage', 'crash_map', 'success_map', 'results', 'stats', 'print_stats', 'function_versions', 'time_all_versions_of'
+
+
+class MaxExecutionTime(Exception):
+    pass
+
+class max_execution_time:
+    def signal_handler(self, signum, frame):
+        raise self.ex_type('operation timed out')
+
+    def __init__(self, seconds, ex_type=MaxExecutionTime):
+        #print('setting timeout for {} seconds'.format(seconds))
+        if seconds < 1:
+            seconds = 1
+        self.seconds = seconds
+        self.ex_type = ex_type
+
+    def __enter__(self):
+        signal.signal(signal.SIGALRM, self.signal_handler)
+        signal.alarm(self.seconds)
+
+    def __exit__(self, *a):
+        signal.alarm(0)
 
 
 def hashable_strategy(s):
@@ -819,8 +841,9 @@ Parameters:
         timer = generators.timer()
 
         def display_stats(overwrite_line=True):
+            now = next(display_stats.timer)
+            display_stats.remaining = display_stats.test_time-now
             if not display_stats.quiet:
-                now = next(display_stats.timer)
                 print('tests: {:<8}  {:>6}/sec {} {}s    '.format(
                     display_stats.count,
                     int(display_stats.count/(now if now > 0 else 0.001)),
@@ -829,6 +852,7 @@ Parameters:
                 ), end=('\r' if overwrite_line else '\n'))
                 sys.stdout.flush()
         display_stats.test_time = seconds
+        display_stats.remaining = display_stats.test_time
         display_stats.count = 0
         display_stats.timer = generators.timer()
         display_stats.average = generators.avg()
@@ -900,7 +924,12 @@ Parameters:
                     raise FuzzTimeout()
                 display_stats.count += 1
                 try:
-                    out = fn(*arg_list)
+                    with max_execution_time(int(display_stats.remaining)):
+                        out = fn(*arg_list)
+                        # if out is a generator, empty it out.
+                        if hasattr(out, '__iter__') and (hasattr(out,'__next__') or hasattr(out,'next')):
+                            for i in out:
+                                pass
                     # the rest of this block is handling logging a success
                     input_types = tuple(type(i) for i in arg_list)
                     # if the input types have caused a crash before, add them to iffy_types
@@ -916,6 +945,8 @@ Parameters:
                         (fn.none_successful_io if out is None else fn.successful_io).append(io_example(arg_list, out))
                     except:
                         pass
+                except MaxExecutionTime:
+                    pass
                 except fuzz.allow as ex:
                     pass
                 except Exception as ex:
@@ -1124,6 +1155,11 @@ def time_all_versions_of(fn):
 
 
 if __name__ == '__main__':
+    def test_generator(a):
+        for i in range(a):
+            yield i
+    print(fuzz(test_generator, verbose=True))
+
     # try the custom strategy syntax
     @battle_tested(strategy=st.text(),max_tests=50)
     def custom_text_strategy(a,b):
