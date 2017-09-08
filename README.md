@@ -1,4 +1,4 @@
-# battle_tested.py
+# Battle Tested
 An automated library that puts functions through hell so in production your code will have already seen worse.
 
 ## How to install it?
@@ -109,3 +109,10 @@ def sample3(input_arg):
 
 fuzz(sample3, seconds=5, verbose=True)
 ```
+
+## Contributors
+
+| [<img src="https://avatars0.githubusercontent.com/u/6968406" width="75px;"/>](https://github.com/CodyKochmann) | [Cody Kochmann](https://github.com/CodyKochmann) | lead author |
+|:---:|:--- |:--- |
+| [<img src="https://avatars2.githubusercontent.com/u/1007" width="75px;"/>](https://github.com/marcinpohl) | [Marcin Pohl](https://github.com/marcinpohl) | advising for better performance and resource utilization |
+
