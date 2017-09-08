@@ -179,7 +179,7 @@ class UniqueCrashContainer(tuple):
         table.align["location"] = "l"
         table.align["crash message"] = "l"
         for i in self:
-            table.add_row((repr(i.err_type),repr(tuple(i.__name__ for i in i.arg_types)),[x for x in i.trace.split(', ') if x.startswith('line ')][-1],i.message))
+            table.add_row((i.err_type.__name__,repr(tuple(i.__name__ for i in i.arg_types)),[x for x in i.trace.split(', ') if x.startswith('line ')][-1],i.message))
         return table.get_string()
 
 class PrettyTuple(tuple):
@@ -1162,6 +1162,11 @@ if __name__ == '__main__':
     @battle_tested(keep_testing=False)
     def sample2(a,b,c,d=''):
         t = a, b, c, d
+
+    # output for documentation
+    def test(a):
+        return int(a)
+    print(repr(fuzz(test)))
 
     # test different speeds
     @battle_tested(seconds=1)
