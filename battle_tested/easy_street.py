@@ -117,34 +117,35 @@ e = lambda:next(next(easy_garbage))
 for i in range(50):
     print(e())
 
-exit()
+"""
 
-for i in (x for x in dir(easy) if x not in dir(tmp)):
-    g = getattr(easy, i)()
-    print('----------------------\ntesting:',i,'\n----------------------')
+    for i in (x for x in dir(easy) if x not in dir(tmp)):
+        g = getattr(easy, i)()
+        print('----------------------\ntesting:',i,'\n----------------------')
+        for i in range(10):
+            print(next(g))
+
+    exit()
+
+    g = easy.chars()
     for i in range(10):
         print(next(g))
 
-exit()
+    g = easy.bools()
+    for i in range(10):
+        print(next(g))
 
-g = easy.chars()
-for i in range(10):
-    print(next(g))
-
-g = easy.bools()
-for i in range(10):
-    print(next(g))
-
-g = easy.ints()
-for i in range(50):
-    print(next(g))
+    g = easy.ints()
+    for i in range(50):
+        print(next(g))
 
 
-g = easy.strings()
-for i in range(50):
-    i = next(g)
-    print(i)
+    g = easy.strings()
+    for i in range(50):
+        i = next(g)
+        print(i)
     """
+"""
     try:
         eval(i)
     except Exception as e:
