@@ -112,12 +112,10 @@ easy_garbage = iter(partial(choice, tuple(
     getattr(easy, i)() for i in (x for x in dir(easy) if x not in dir(tmp))
 )), 500)
 
-c = 500
-for i in easy_garbage:
-    c -= 1
-    if c <= 0:
-        break
-    print(next(i))
+e = lambda:next(next(easy_garbage))
+
+for i in range(50):
+    print(e())
 
 exit()
 
