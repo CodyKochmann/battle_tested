@@ -3,7 +3,7 @@
 from hypothesis import strategies as st
 from random import choice
 from re import findall
-
+from generators import window
 
 
 
@@ -41,6 +41,7 @@ class easy:
                 list(set(findall(r'[a-zA-Z\_]{1,}',[
                     v.__doc__ for v in globals().values() if hasattr(v, '__doc__')
                 ].__repr__()))) + [
+                    '',
                     'exit("######## WARNING this code is executing strings blindly ########")'
                 ]
             ), 0
@@ -52,24 +53,80 @@ class easy:
 
     @staticmethod
     def ints():
-        """# fish
-                                for i in range(1,20):
-                                    yield i
-                                # sticks
-                                for i in range(-10,0):
-                                    yield i"""
-        # waffles
-        #for i in iter(partial(choice, [2**n for n in range(33)]), ''):
-        #    yield i
-        for i in iter(partial(randint, 2, 2**32),''):
+        for i in iter(partial(choice, tuple(range(-33,65))), ''):
             yield i
 
-with open('random_ish.txt','wb') as f:
-    g = easy.ints()
-    for i in range(1000):
-        i=next(g)
-        print(i)
-        f.write(i.to_bytes(4, 'little'))
+    @staticmethod
+    def floats():
+        rand_numerator = (i for i in easy.ints() if i != 0)
+        rand_denomerator = partial(next,(1.0*i for i in easy.ints() if i != 0))
+        for n in rand_numerator:
+            yield n/rand_denomerator()
+
+    @staticmethod
+    def lists():
+        rand_length = partial(randint, 0, 20)
+        rand_list = partial(choice, (
+            lambda:[next(easy.strings()) for i in range(rand_length())] ,
+            lambda:[next(easy.ints()) for i in range(rand_length())] ,
+            lambda:[next(easy.floats()) for i in range(rand_length())] ,
+            lambda:[next(easy.bools()) for i in range(rand_length())] ,
+        ))
+        for i in iter(rand_list, ''):
+            yield i()
+
+    @staticmethod
+    def tuples():
+        for i in easy.lists():
+            yield tuple(i)
+
+    @staticmethod
+    def dicts():
+        rand_length = partial(randint, 0, 20)
+        rand_dict = partial(choice, (
+            lambda:{next(easy.strings()):next(easy.strings()) for i in range(rand_length())} ,
+            lambda:{next(easy.ints()):next(easy.ints()) for i in range(rand_length())} ,
+            lambda:{next(easy.floats()):next(easy.floats()) for i in range(rand_length())} ,
+            lambda:{next(easy.bools()):next(easy.bools()) for i in range(randint(1,2))} ,
+        ))
+        for i in iter(rand_dict, ''):
+            yield i()
+
+    @staticmethod
+    def sets():
+        rand_length = partial(randint, 0, 20)
+        rand_set = partial(choice, (
+            lambda:{next(easy.strings()) for i in range(rand_length())} ,
+            lambda:{next(easy.ints()) for i in range(rand_length())} ,
+            lambda:{next(easy.floats()) for i in range(rand_length())} ,
+            lambda:{next(easy.bools()) for i in range(randint(1,2))} ,
+        ))
+        for i in iter(rand_set, ''):
+            yield i()
+
+class tmp:
+    pass
+
+
+easy_garbage = iter(partial(choice, tuple(
+    getattr(easy, i)() for i in (x for x in dir(easy) if x not in dir(tmp))
+)), 500)
+
+c = 500
+for i in easy_garbage:
+    c -= 1
+    if c <= 0:
+        break
+    print(next(i))
+
+exit()
+
+for i in (x for x in dir(easy) if x not in dir(tmp)):
+    g = getattr(easy, i)()
+    print('----------------------\ntesting:',i,'\n----------------------')
+    for i in range(10):
+        print(next(g))
+
 exit()
 
 g = easy.chars()
@@ -84,15 +141,18 @@ g = easy.ints()
 for i in range(50):
     print(next(g))
 
+
 g = easy.strings()
-for i in range(5000):
+for i in range(50):
     i = next(g)
     print(i)
+    """
     try:
         eval(i)
     except Exception as e:
         print(e)
         pass
+    """
 """
 exit()
 
