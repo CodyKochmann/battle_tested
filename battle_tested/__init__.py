@@ -42,6 +42,7 @@ from time import time
 from stricttuple import stricttuple
 from collections import deque
 from itertools import chain, product
+from inspect import getsource
 from random import choice
 import signal
 
@@ -531,7 +532,10 @@ class ipython_tools(object):
 def function_arg_count(fn):
     """ generates a list of the given function's arguments """
     assert callable(fn), 'function_arg_count needed a callable function, not {0}'.format(repr(fn))
-    return fn.__code__.co_argcount
+    if hasattr(fn, '__code__') and hasattr(fn.__code__, 'co_argcount'):
+        return fn.__code__.co_argcount
+    else:
+        return 1 # not universal, but for now, enough... :/
 
 class battle_tested(object):
     """
@@ -1142,12 +1146,30 @@ def time_io(fn,args,rounds=1000):
             fn(*a)
     return time()-start
 
+def all_common_successful_io(*functions):
+    ''' gets all io objects that works with all given '''
+    for io in generators.chain(*(fn.successful_io for fn in functions)):
+        succeeded = 0
+        for fn in functions:
+            try:
+                out = fn(*io.input)
+                if hasattr(out, '__iter__'):
+                    for i in out:
+                        pass
+                succeeded += 1
+            except:
+                pass
+        if succeeded == len(functions):
+            yield io
+
 def time_all_versions_of(fn):
     ''' time how long each version of a function takes to run through the saved io '''
     print('\ntiming all versions of {}'.format(fn.__name__))
+    common_io = partial(all_common_successful_io, *list(function_versions(fn)))
+    print('found {} inputs that all versions can run'.format(len(list(common_io()))))
     for f in function_versions(fn):
         print('\n{}\n\n{}'.format('-'*60,getsource(f)))
-        print('{:.10f}'.format(time_io(f,(io.input for io in f.successful_io))),'seconds')
+        print('{:.10f}'.format(time_io(f,(io.input for io in common_io()))),'seconds')
         #print(time_io(f,(io.input for io in f.successful_io)),'seconds with {} runs'.format(len(f.successful_io)*1000))
         #    for ff in function_versions(fn):
         #    #print(time_io(f,(io.input for io in ff.successful_io)),'seconds')
@@ -1156,9 +1178,15 @@ def time_all_versions_of(fn):
 
 if __name__ == '__main__':
     def test_generator(a):
-        for i in range(a):
+        for i in a:
             yield i
-    print(fuzz(test_generator, verbose=True))
+    print(fuzz(test_generator, seconds=10))
+    def test_generator(a):
+        for i in a:
+            yield i,i
+    print(fuzz(test_generator, seconds=10))
+
+    print(time_all_versions_of(test_generator))
 
     # try the custom strategy syntax
     @battle_tested(strategy=st.text(),max_tests=50)
