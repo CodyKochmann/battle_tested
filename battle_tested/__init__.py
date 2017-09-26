@@ -46,7 +46,113 @@ from inspect import getsource
 from random import choice
 import signal
 
-__all__ = 'battle_tested', 'fuzz', 'disable_traceback', 'enable_traceback', 'garbage', 'crash_map', 'success_map', 'results', 'stats', 'print_stats', 'function_versions', 'time_all_versions_of'
+__all__ = 'battle_tested', 'fuzz', 'disable_traceback', 'enable_traceback', 'garbage', 'crash_map', 'success_map', 'results', 'stats', 'print_stats', 'function_versions', 'time_all_versions_of', 'easy_street'
+
+from random import choice
+from re import findall
+
+import generators as gen
+
+from string import ascii_letters, digits
+from functools import partial
+from random import choice, randint
+from itertools import product, cycle, chain, islice
+
+def cycle_combinations(*gens):
+    l_gen = len(gens)
+    while 1:
+        for i in chain(*product(gens, repeat=l_gen)):
+            yield i
+
+class easy_street:
+    @staticmethod
+    def chars():
+        return iter(partial(choice, ascii_letters + digits), None )
+
+    @staticmethod
+    def strings():
+        return iter(
+            partial(
+                choice,
+                list(set(findall(r'[a-zA-Z\_]{1,}',[
+                    v.__doc__ for v in globals().values() if hasattr(v, '__doc__')
+                ].__repr__()))) + [
+                    '',
+                    'exit("######## WARNING this code is executing strings blindly ########")'
+                ]
+            ), 0
+        )
+
+    @staticmethod
+    def bools():
+        return iter(partial(choice, (True, False)), '')
+
+    @staticmethod
+    def ints():
+        for i in iter(partial(choice, tuple(range(-33,65))), ''):
+            yield i
+
+    @staticmethod
+    def floats():
+        rand_numerator = (i for i in easy.ints() if i != 0)
+        rand_denomerator = partial(next,(1.0*i for i in easy.ints() if i != 0))
+        for n in rand_numerator:
+            yield n/rand_denomerator()
+
+    @staticmethod
+    def lists():
+        strategies = easy.strings(), easy.ints(), easy.floats(), easy.bools()
+        strategies = list(gen.chain(product(strategies, repeat=len(strategies))))
+        lengths = cycle(list(range(0, 21)))
+
+        for _ in cycle([0]*300):
+            for length in lengths:
+                for strat in strategies:
+                    yield [next(st) for st in islice(strat, length)]
+
+    @staticmethod
+    def tuples():
+        for i in easy.lists():
+            yield tuple(i)
+
+    @staticmethod
+    def dicts():
+        strategies = easy.strings(), easy.ints(), easy.floats(), easy.bools()
+        strategies = list(gen.chain(product(strategies, repeat=len(strategies))))
+        lengths = cycle(list(range(0, 21)))
+
+        for _ in cycle([0]*300):
+            for length in lengths:
+                for strat in strategies:
+                    yield { next(k):next(v) for k,v in gen.chunks(islice(strat,length*2), 2) }
+
+    @staticmethod
+    def sets():
+        strategies = easy.strings(), easy.ints(), easy.floats(), easy.bools()
+        strategies = list(gen.chain(product(strategies, repeat=len(strategies))))
+        lengths = cycle(list(range(0, 21)))
+
+        for _ in cycle([0]*300):
+            for length in lengths:
+                for strat in strategies:
+                    yield {next(i) for i in islice(strat, length)}
+
+    @staticmethod
+    def garbage():
+        strategies = (
+            easy.strings(),
+            easy.ints(),
+            easy.floats(),
+            easy.bools(),
+            easy.dicts(),
+            easy.sets(),
+            easy.lists(),
+            easy.tuples()
+        )
+        while 1:
+            for strats in product(strategies, repeat=len(strategies)):
+                for strat in strats:
+                    yield next(strat)
 
 
 class MaxExecutionTime(Exception):
