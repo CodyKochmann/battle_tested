@@ -94,14 +94,14 @@ class easy_street:
 
     @staticmethod
     def floats():
-        rand_numerator = (i for i in easy.ints() if i != 0)
-        rand_denomerator = partial(next,(1.0*i for i in easy.ints() if i != 0))
+        rand_numerator = (i for i in easy_street.ints() if i != 0)
+        rand_denomerator = partial(next,(1.0*i for i in easy_street.ints() if i != 0))
         for n in rand_numerator:
             yield n/rand_denomerator()
 
     @staticmethod
     def lists():
-        strategies = easy.strings(), easy.ints(), easy.floats(), easy.bools()
+        strategies = easy_street.strings(), easy_street.ints(), easy_street.floats(), easy_street.bools()
         strategies = list(gen.chain(product(strategies, repeat=len(strategies))))
         lengths = cycle(list(range(0, 21)))
 
@@ -112,12 +112,12 @@ class easy_street:
 
     @staticmethod
     def tuples():
-        for i in easy.lists():
+        for i in easy_street.lists():
             yield tuple(i)
 
     @staticmethod
     def dicts():
-        strategies = easy.strings(), easy.ints(), easy.floats(), easy.bools()
+        strategies = easy_street.strings(), easy_street.ints(), easy_street.floats(), easy_street.bools()
         strategies = list(gen.chain(product(strategies, repeat=len(strategies))))
         lengths = cycle(list(range(0, 21)))
 
@@ -128,7 +128,7 @@ class easy_street:
 
     @staticmethod
     def sets():
-        strategies = easy.strings(), easy.ints(), easy.floats(), easy.bools()
+        strategies = easy_street.strings(), easy_street.ints(), easy_street.floats(), easy_street.bools()
         strategies = list(gen.chain(product(strategies, repeat=len(strategies))))
         lengths = cycle(list(range(0, 21)))
 
@@ -140,14 +140,14 @@ class easy_street:
     @staticmethod
     def garbage():
         strategies = (
-            easy.strings(),
-            easy.ints(),
-            easy.floats(),
-            easy.bools(),
-            easy.dicts(),
-            easy.sets(),
-            easy.lists(),
-            easy.tuples()
+            easy_street.strings(),
+            easy_street.ints(),
+            easy_street.floats(),
+            easy_street.bools(),
+            easy_street.dicts(),
+            easy_street.sets(),
+            easy_street.lists(),
+            easy_street.tuples()
         )
         while 1:
             for strats in product(strategies, repeat=len(strategies)):
@@ -1184,6 +1184,10 @@ Parameters:
                     setattr(storage.results[fn].unique_crashes, '{}_{}'.format(crash.err_type.__name__, [x.strip() for x in crash.trace.split(', ') if x.startswith('line ')][-1].replace(' ','_')), crash)
                 except:
                     pass
+        except:
+            pass
+        try:
+            storage.results[fn].successful_io = fn.successful_io
         except:
             pass
         return storage.results[fn]
