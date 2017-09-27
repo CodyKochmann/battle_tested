@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-07-10 15:12:58
+# @Last Modified time: 2017-09-27 08:50:20
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -30,33 +30,28 @@ Or:
 """
 
 from __future__ import print_function, unicode_literals
+from collections import deque
 from functools import wraps, partial
-from prettytable import PrettyTable
-import logging
+from gc import collect as gc
 from hypothesis import given, strategies as st, settings, Verbosity, unlimited
 from hypothesis.errors import HypothesisException
-from gc import collect as gc
-import traceback
-import sys
-from time import time
-from stricttuple import stricttuple
-from collections import deque
-from itertools import chain, product
 from inspect import getsource
-from random import choice
+from itertools import product, cycle, chain, islice
+from prettytable import PrettyTable
+from random import choice, randint
+from re import findall
+from stricttuple import stricttuple
+from string import ascii_letters, digits
+from time import time
+import generators as gen
+import logging
 import signal
+import sys
+import traceback
+
 
 __all__ = 'battle_tested', 'fuzz', 'disable_traceback', 'enable_traceback', 'garbage', 'crash_map', 'success_map', 'results', 'stats', 'print_stats', 'function_versions', 'time_all_versions_of', 'easy_street'
 
-from random import choice
-from re import findall
-
-import generators as gen
-
-from string import ascii_letters, digits
-from functools import partial
-from random import choice, randint
-from itertools import product, cycle, chain, islice
 
 def cycle_combinations(*gens):
     l_gen = len(gens)
