@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-09-27 09:37:52
+# @Last Modified time: 2017-09-27 09:53:24
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -269,6 +269,12 @@ class storage():
         """ wipe battle_tested test_inputs and cache new examples """
         storage.test_inputs.clear()
         storage.build_new_examples()
+
+try:
+    for i in islice(easy_street.garbage(), 10000):
+        storage.test_inputs.append(i)
+except Exception as e:
+    pass
 
 storage.build_new_examples.garbage = garbage
 
@@ -1329,7 +1335,7 @@ if __name__ == '__main__':
 
     def custom_text_int_fuzz_strategy(a,b):
         return a in b
-    fuzz(custom_text_fuzz_strategy, strategy=(st.integers(),st.text()))
+    r=fuzz(custom_text_fuzz_strategy, strategy=(st.integers(),st.text()))
 
     #======================================
     #  Examples using the wrapper syntax
