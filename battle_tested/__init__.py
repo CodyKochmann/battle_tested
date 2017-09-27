@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-09-27 08:50:20
+# @Last Modified time: 2017-09-27 09:37:52
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -297,37 +297,43 @@ def is_py3():
 class UniqueCrashContainer(tuple):
     ''' a pretty printable container for crashes '''
     def __repr__(self):
-        table = PrettyTable(('exception type','arg types','location','crash message'), sortby='exception type')
-        table.align["exception type"] = "l"
-        table.align["arg types"] = "l"
-        table.align["location"] = "l"
-        table.align["crash message"] = "l"
-        for i in self:
-            table.add_row((i.err_type.__name__,repr(tuple(i.__name__ for i in i.arg_types)),[x for x in i.trace.split(', ') if x.startswith('line ')][-1],i.message))
-        return table.get_string()
+        try:
+            table = PrettyTable(('exception type','arg types','location','crash message'), sortby='exception type')
+            table.align["exception type"] = "l"
+            table.align["arg types"] = "l"
+            table.align["location"] = "l"
+            table.align["crash message"] = "l"
+            for i in self:
+                table.add_row((i.err_type.__name__,repr(tuple(i.__name__ for i in i.arg_types)),[x for x in i.trace.split(', ') if x.startswith('line ')][-1],i.message))
+            return table.get_string()
+        except:
+            return tuple.__repr__(self)
 
 class PrettyTuple(tuple):
     ''' tuples with better pretty printing '''
     def __repr__(self):
         if len(self) > 0:
-            table = PrettyTable(None)
             try:
-                tup = tuple(sorted(self, key=repr))
+                table = PrettyTable(None)
+                try:
+                    tup = tuple(sorted(self, key=repr))
+                except:
+                    tup = self
+                for i in tup:
+                    if isinstance(i, tuple):
+                        t = tuple(x.__name__ if isinstance(x,type) and hasattr(x,'__name__') else repr(x) for x in i)
+                        table.add_row(t)
+                    else:
+                        if isinstance(i, type):
+                            if hasattr(i, '__name__'):
+                                i=i.__name__
+                            else:
+                                i=repr(i)
+                        table.add_row((i,))
+                #table.align='l'
+                return '\n'.join(table.get_string().splitlines()[2:])
             except:
-                tup = self
-            for i in tup:
-                if isinstance(i, tuple):
-                    t = tuple(x.__name__ if isinstance(x,type) and hasattr(x,'__name__') else repr(x) for x in i)
-                    table.add_row(t)
-                else:
-                    if isinstance(i, type):
-                        if hasattr(i, '__name__'):
-                            i=i.__name__
-                        else:
-                            i=repr(i)
-                    table.add_row((i,))
-            #table.align='l'
-            return '\n'.join(table.get_string().splitlines()[2:])
+                return tuple.__repr__(self)
         else:
             return '()'
 
@@ -836,6 +842,10 @@ Parameters:
         unique_crashes = (
             lambda unique_crashes: type(unique_crashes)==UniqueCrashContainer,
         ),
+        successful_io = (
+            lambda successful_io: type(successful_io)==deque,
+            lambda successful_io: all(type(i) == io_example for i in successful_io) if len(successful_io) else 1
+        ),
     )
 
     @staticmethod
@@ -973,7 +983,8 @@ Parameters:
             'iffy_input_types':set(), # types that both succeed and crash the function
             'output_types':set(),
             'exception_types':set(),
-            'unique_crashes':dict()
+            'unique_crashes':dict(),
+            'successful_io':deque()
         }
 
         fn.fuzz_time = time()
@@ -981,7 +992,7 @@ Parameters:
 
         gc_interval = IntervalTimer(3, gc)
 
-        @settings(perform_health_check=False, database_file=None, max_examples=max_tests, verbosity=(Verbosity.verbose if verbose else Verbosity.normal))
+        @settings(perform_health_check=False, database_file=None, deadline=None, max_examples=max_tests, verbosity=(Verbosity.verbose if verbose else Verbosity.normal))
         @given(strategy)
         def fuzz(given_args):
             if fuzz.first_run:
@@ -1131,6 +1142,13 @@ Parameters:
             results_dict = storage.results[fn]
             results_dict['iffy_input_types'] = set(i for i in results_dict['crash_input_types'] if i in results_dict['successful_input_types'])
 
+            # merge the io maps
+            for i in fn.none_successful_io:
+                if len(fn.successful_io)<fn.successful_io.maxlen:
+                    fn.successful_io.append(i)
+            # remove io map with None examples
+            del fn.none_successful_io
+
             storage.results[fn] = battle_tested.Result(
                 successful_input_types = PrettyTuple(set(i for i in results_dict['successful_input_types'] if i not in results_dict['iffy_input_types'] and i not in results_dict['crash_input_types'])),
                 crash_input_types = PrettyTuple(results_dict['crash_input_types']),
@@ -1138,6 +1156,7 @@ Parameters:
                 output_types = PrettyTuple(results_dict['output_types']),
                 exception_types = PrettyTuple(results_dict['exception_types']),
                 unique_crashes = UniqueCrashContainer(results_dict['unique_crashes'].values()),
+                successful_io = fn.successful_io
             )
             ## find the types that both crashed and succeeded
             #results_dict['iffy_input_types'] = set(i for i in results_dict['crash_input_types'] if i in results_dict['successful_input_types'])
@@ -1155,12 +1174,7 @@ Parameters:
             if not quiet:
                 print('battle_tested: no falsifying examples found')
 
-        # merge the io maps
-        for i in fn.none_successful_io:
-            if len(fn.successful_io)<fn.successful_io.maxlen:
-                fn.successful_io.append(i)
-        # remove io map with None examples
-        del fn.none_successful_io
+
 
         # try to save the fields to the function object
         try:
@@ -1179,10 +1193,6 @@ Parameters:
                     setattr(storage.results[fn].unique_crashes, '{}_{}'.format(crash.err_type.__name__, [x.strip() for x in crash.trace.split(', ') if x.startswith('line ')][-1].replace(' ','_')), crash)
                 except:
                     pass
-        except:
-            pass
-        try:
-            storage.results[fn].successful_io = fn.successful_io
         except:
             pass
         return storage.results[fn]
@@ -1285,13 +1295,13 @@ if __name__ == '__main__':
     def test_generator(a):
         for i in a:
             yield i
-    print(fuzz(test_generator, seconds=10))
+    #print(fuzz(test_generator, seconds=10))
     def test_generator(a):
         for i in a:
             yield i,i
-    print(fuzz(test_generator, seconds=10))
+    #print(fuzz(test_generator, seconds=10))
 
-    print(time_all_versions_of(test_generator))
+    #print(time_all_versions_of(test_generator))
 
     # try the custom strategy syntax
     @battle_tested(strategy=st.text(),max_tests=50)
@@ -1420,6 +1430,8 @@ if __name__ == '__main__':
 
     # this tests a long fuzz
     r=fuzz(sample3, seconds=20)
+
+    print(r.successful_io)
 
     crash_map()
     success_map()
