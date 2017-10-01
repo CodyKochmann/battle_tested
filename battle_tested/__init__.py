@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified by:   Cody Kochmann
-# @Last Modified time: 2017-09-27 09:53:24
+# @Last Modified time: 2017-09-30 22:00:43
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -52,6 +52,22 @@ import traceback
 
 __all__ = 'battle_tested', 'fuzz', 'disable_traceback', 'enable_traceback', 'garbage', 'crash_map', 'success_map', 'results', 'stats', 'print_stats', 'function_versions', 'time_all_versions_of', 'easy_street'
 
+def shorten(string, max_length=80, trailing_chars=3):
+    ''' trims the 'string' argument down to 'max_length' to make previews to long string values '''
+    assert type(string).__name__ in {'str', 'unicode'}, 'shorten needs string to be a string, not {}'.format(type(string))
+    assert type(max_length) == int, 'shorten needs max_length to be an int, not {}'.format(type(max_length))
+    assert type(trailing_chars) == int, 'shorten needs trailing_chars to be an int, not {}'.format(type(trailing_chars))
+    assert max_length > 0, 'shorten needs max_length to be positive, not {}'.format(max_length)
+    assert trailing_chars >= 0, 'shorten needs trailing_chars to be greater than or equal to 0, not {}'.format(trailing_chars)
+
+    return (
+        string
+    ) if len(string) <= max_length else (
+        '{before:}...{after:}'.format(
+            before=string[:max_length-(trailing_chars+3)],
+            after=string[-trailing_chars:] if trailing_chars>0 else ''
+        )
+    )
 
 def cycle_combinations(*gens):
     l_gen = len(gens)
