@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
-# @Last Modified by:   Cody Kochmann
+# @Last Modified 2017-10-06e>
 # @Last Modified time: 2017-09-30 22:00:43
 
 """
@@ -35,7 +35,6 @@ from functools import wraps, partial
 from gc import collect as gc
 from hypothesis import given, strategies as st, settings, Verbosity, unlimited
 from hypothesis.errors import HypothesisException
-from inspect import getsource
 from itertools import product, cycle, chain, islice
 from prettytable import PrettyTable
 from random import choice, randint
@@ -51,6 +50,16 @@ import traceback
 
 
 __all__ = 'battle_tested', 'fuzz', 'disable_traceback', 'enable_traceback', 'garbage', 'crash_map', 'success_map', 'results', 'stats', 'print_stats', 'function_versions', 'time_all_versions_of', 'easy_street'
+
+def getsource(fn):
+    from inspect import getsource
+    try:
+        return getsource(fn)
+    except:
+        try:
+            return '{}'.format(fn)
+        except:
+            return ''
 
 def shorten(string, max_length=80, trailing_chars=3):
     ''' trims the 'string' argument down to 'max_length' to make previews to long string values '''
