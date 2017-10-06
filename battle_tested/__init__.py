@@ -79,12 +79,6 @@ def shorten(string, max_length=80, trailing_chars=3):
         )
     )
 
-def cycle_combinations(*gens):
-    l_gen = len(gens)
-    while 1:
-        for i in chain(*product(gens, repeat=l_gen)):
-            yield i
-
 class easy_street:
     @staticmethod
     def chars():
