@@ -1023,7 +1023,7 @@ Parameters:
         display_stats.timer = generators.timer()
         display_stats.average = generators.avg()
         display_stats.interval = IntervalTimer(0.16, display_stats)
-        display_stats.quiet = quiet
+        display_stats.quiet = quiet or verbose
         display_stats.start = lambda:(next(display_stats.timer),display_stats.interval.start())
 
         ipython_tools.silence_traceback()
@@ -1171,15 +1171,17 @@ Parameters:
         try:
             gc_interval.start()
             while 2:
-                fuzz(strategy.example())
-            #while 1:
-            #    try:
-            #        fuzz()
-            #        break
-            #    except HypothesisException as ex:
-            #        fuzz.exceptions.append(ex)
-            #        if len(fuzz.exceptions)>3:
-            #            break
+                test_args = strategy.example()
+                if verbose:
+                    try:
+                        s = '{}'.format(tuple(test_args))
+                        s = s[:-2]+s[-1]
+                        print('trying {}{}'.format(fn.__name__, s))
+                    except: pass
+                fuzz(test_args)
+                max_tests -= 1
+                if max_tests <= 0:
+                    break
         except FuzzTimeout:
             pass
         except KeyboardInterrupt:
@@ -1355,7 +1357,7 @@ if __name__ == '__main__':
     # test fuzzing all the types
     for i in (str, bool, bytearray, bytes, complex, dict, float, frozenset, int, list, object, set, str, tuple):
         print('testing: {}'.format(i))
-        print(fuzz(i))
+        print(fuzz(i, verbose=True))
 
     def test_generator(a):
         for i in a:
