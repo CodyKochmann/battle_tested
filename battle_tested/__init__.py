@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
-# @Last Modified 2017-10-06e>
+# @Last Modified 2017-10-06
 # @Last Modified time: 2017-09-30 22:00:43
 
 """
@@ -52,6 +52,7 @@ import traceback
 __all__ = 'battle_tested', 'fuzz', 'disable_traceback', 'enable_traceback', 'garbage', 'crash_map', 'success_map', 'results', 'stats', 'print_stats', 'function_versions', 'time_all_versions_of', 'easy_street'
 
 def getsource(fn):
+    ''' basically just inspect.getsource, only this one doesn't crash as much '''
     from inspect import getsource
     try:
         return getsource(fn)
