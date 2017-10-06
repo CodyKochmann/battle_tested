@@ -987,6 +987,7 @@ Parameters:
             w.append(_inner_window_speed())
             return int((1.0*sum(w))/len(w))
         calculate_window_speed.window = deque(maxlen=4)
+
         def _inner_window_speed():
             cw = display_stats.count_window
             tw = display_stats.time_window
@@ -1012,8 +1013,8 @@ Parameters:
                     '-' if overwrite_line else 'in',
                     int(display_stats.test_time-now)+1 if overwrite_line else display_stats.test_time
                 ), end=('\r' if overwrite_line else '\n'))
-
                 sys.stdout.flush()
+
         display_stats.test_time = seconds
         display_stats.remaining = display_stats.test_time
         display_stats.count = 0
