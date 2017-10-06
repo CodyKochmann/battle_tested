@@ -1045,8 +1045,8 @@ Parameters:
 
         gc_interval = IntervalTimer(3, gc)
 
-        @settings(perform_health_check=False, database_file=None, deadline=None, max_examples=max_tests, verbosity=(Verbosity.verbose if verbose else Verbosity.normal))
-        @given(strategy)
+        #@settings(perform_health_check=False, database_file=None, deadline=None, max_examples=max_tests, verbosity=(Verbosity.verbose if verbose else Verbosity.normal))
+        #@given(strategy)
         def fuzz(given_args):
             if fuzz.first_run:
                 # stores examples that succeed and return something other than None
@@ -1170,14 +1170,16 @@ Parameters:
         # run the test
         try:
             gc_interval.start()
-            while 1:
-                try:
-                    fuzz()
-                    break
-                except HypothesisException as ex:
-                    fuzz.exceptions.append(ex)
-                    if len(fuzz.exceptions)>3:
-                        break
+            while 2:
+                fuzz(strategy.example())
+            #while 1:
+            #    try:
+            #        fuzz()
+            #        break
+            #    except HypothesisException as ex:
+            #        fuzz.exceptions.append(ex)
+            #        if len(fuzz.exceptions)>3:
+            #            break
         except FuzzTimeout:
             pass
         except KeyboardInterrupt:
