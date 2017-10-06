@@ -169,6 +169,62 @@ class easy_street:
                 for strat in strats:
                     yield next(strat)
 
+from multiprocessing import Process, Queue
+
+def background_strategy(strat, q):
+    example = strat.example
+    put = q.put
+    while 2:
+        put(example())
+
+def multiprocess_garbage():
+    basics = (
+        st.binary(),
+        st.booleans(),
+        st.characters(),
+        st.complex_numbers(),
+        st.floats(),
+        st.fractions(),
+        st.integers(),
+        st.none(),
+        st.text(),
+        st.uuids(),
+        st.dictionaries(keys=st.text(), values=st.text())
+    )
+
+    hashables = tuple(s for s in basics if hashable_strategy(s))
+
+    lists = tuple(st.lists(elements=i) for i in basics)
+    tuples = tuple(st.lists(elements=i).map(tuple) for i in basics)
+    sets = tuple(st.sets(elements=i) for i in hashables)
+    dictionaries = tuple(st.dictionaries(keys=st.one_of(*hashables), values=i) for i in basics)
+
+    strats = basics + lists + tuples + sets + dictionaries
+
+    jobs = [(s, Queue(1)) for s in strats]
+
+    processes = [
+        Process(target=background_strategy, args=j)
+        for j in jobs
+    ]
+
+    for p in processes:
+        p.start()
+
+    try:
+        fast_alternative = easy_street.garbage()
+        while 2:
+            for s,q in jobs:
+                yield q.get() if q.full() else next(fast_alternative)
+    except (KeyboardInterrupt, SystemExit, GeneratorExit, StopIteration):
+        for p in processes:
+            p.terminate()
+            p.join()
+    finally:
+        for p in processes:
+            p.terminate()
+            p.join()
+
 
 class MaxExecutionTime(Exception):
     pass
@@ -298,7 +354,7 @@ except Exception as e:
 
 storage.build_new_examples.garbage = garbage
 
-class io_example():
+class io_example(type):
     """ demonstrates the behavior of input and output """
     def __init__(self, input_args, output):
         self.input = input_args
@@ -801,6 +857,12 @@ Parameters:
         assert all(issubclass(i, BaseException) for i in allow), 'allow only accepts exceptions as its members'
 
     @staticmethod
+    def __verify_args_needed__(args_needed):
+        """ ensures args_needed is a valid number of args for a function """
+        assert type(args_needed) == int, 'args_needed needs to be a positive int'
+        assert args_needed > 0, 'args_needed needs to be a positive int'
+
+    @staticmethod
     def __verify_strategy__(strategy):
         """ ensures strategy is a strategy or tuple of strategies """
         def is_strategy(strategy):
@@ -884,7 +946,6 @@ Parameters:
     def stats(fn):
         ''' returns the stats found when testing a function '''
         results = battle_tested.results(fn)
-
         return {k:len(getattr(results, k)) for k in results._fields}
 
     @staticmethod
@@ -907,6 +968,37 @@ Parameters:
         '''a map of data types that were able to get through the function without crashing'''
     crash_map = _crash_map()
     success_map = _success_map()
+
+    @staticmethod
+    def generate_examples(args_needed=1, strategy=None):
+        """ this is the primary argument generator that battle_tested runs on """
+        battle_tested.__verify_args_needed__(args_needed)
+        if strategy is not None: # logic for a custom strategy
+            battle_tested.__verify_strategy__(strategy)
+            if type(strategy) == tuple:
+                assert len(strategy) == args_needed, 'invalid number of strategies, needed {} got {}'.format(args_needed, len(strategy))
+                print('using {} custom strategies - {}'.format(len(strategy),strategy))
+                strategy = st.builds(lambda *x: list(x), *strategy)
+            else:
+                # generate lists containing output only from the given strategy
+                ex = strategy.example
+                while 2:
+                    out = [ex() for i in range(args_needed)]
+                    for i in product(out, repeat=len(out)):
+                        yield i
+        else: # logic for fuzzing approach
+            # first run through the cache
+            for chunk in generators.chunks(chain(storage.test_inputs, reversed(storage.test_inputs)),size=args_needed):
+                for combination in product(chunk, repeat=args_needed):
+                    yield combination
+            try:
+                garbage = multiprocess_garbage()
+                while 2:
+                    out = [next(garbage) for i in range(args_needed)]
+                    for i in product(out, repeat=len(out)):
+                        yield i
+            finally:
+                garbage.close()
 
     @staticmethod
     def fuzz(fn, seconds=3, max_tests=1000000, verbose=False, keep_testing=True, quiet=False, allow=(), strategy=garbage):
@@ -963,13 +1055,13 @@ Parameters:
 
         using_native_garbage = hash(strategy) == hash(garbage)
 
-        if type(strategy) == tuple:
-            assert len(strategy) == args_needed, 'invalid number of strategies, needed {} got {}'.format(args_needed, len(strategy))
-            print('using {} custom strategies - {}'.format(len(strategy),strategy))
-            strategy = st.builds(lambda *x: list(x), *strategy)
-        else:
-            # generate a strategy that creates a list of garbage variables for each argument
-            strategy = st.lists(elements=strategy, max_size=args_needed, min_size=args_needed)
+        #if type(strategy) == tuple:
+        #    assert len(strategy) == args_needed, 'invalid number of strategies, needed {} got {}'.format(args_needed, len(strategy))
+        #    print('using {} custom strategies - {}'.format(len(strategy),strategy))
+        #    strategy = st.builds(lambda *x: list(x), *strategy)
+        #else:
+        #    # generate a strategy that creates a list of garbage variables for each argument
+        #    strategy = st.lists(elements=strategy, max_size=args_needed, min_size=args_needed)
 
         if not quiet:
             print('testing: {0}()'.format(fn.__name__))
@@ -999,8 +1091,8 @@ Parameters:
                     return out if out > 0 else 1
             return 1
 
-
         def display_stats(overwrite_line=True):
+
             now = next(display_stats.timer)
             display_stats.remaining = display_stats.test_time-now
             if not display_stats.quiet:
@@ -1042,6 +1134,10 @@ Parameters:
             pass
         fn_info.fuzz_time = time()
         fn_info.fuzz_id = len(storage.results.keys())
+        # stores examples that succeed and return something other than None
+        fn_info.successful_io = deque(maxlen=256)
+        # stores examples that return None
+        fn_info.none_successful_io = deque(maxlen=256)
 
         gc_interval = IntervalTimer(3, gc)
 
@@ -1049,115 +1145,85 @@ Parameters:
         #@given(strategy)
         def fuzz(given_args):
             if fuzz.first_run:
-                # stores examples that succeed and return something other than None
-                fn_info.successful_io = deque(maxlen=256)
-                # stores examples that return None
-                fn_info.none_successful_io = deque(maxlen=256)
-            if fuzz.using_native_garbage and fuzz.first_run:
-                #print('using native garbage')
-                if len(storage.test_inputs)<100: # cache a few examples if there is nothing
-                    storage.refresh_test_inputs()
-                #print('found {} cached examples'.format(len(storage.test_inputs)))
-                def test_variables():
-                    for chunk in generators.chunks(chain(storage.test_inputs,reversed(storage.test_inputs)),size=fuzz.args_needed):
-                        for combination in product(chunk, repeat=fuzz.args_needed):
-                            yield combination
-                    #if fuzz.args_needed > 1:
-                    #    for i in product(generators.every_possible_object(storage.test_inputs), repeat=fuzz.args_needed):
-                    #        yield i
-                test_variables = test_variables()
-                #print('using {} cached tests'.format(len(storage.test_inputs)))
-            else:
-                #print('reverting to hypothesis generation after {} tests'.format(display_stats.count))
-                if fuzz.using_native_garbage:
-                    for i in given_args:
-                        storage.test_inputs.append(i)
-                    # use product to make more tests out of what hypothesis could make
-                    test_variables = product(given_args, repeat=len(given_args))
-                else:
-                    test_variables = [given_args,]
-            if fuzz.first_run:
                 fuzz.first_run = False
                 # start the display interval
                 display_stats.start()
                 # start the countdown for timeout
                 fuzz.timestopper.start()
 
-            # use product to make more tests out of what hypothesis could make
-            for arg_list in test_variables:
-                arg_list = tuple(arg_list)
-                #if len(arg_list) != fuzz.args_needed:
-                #    exit('got {} args? {}'.format(len(arg_list),next(test_variables)))
-                # unpack the arguments
-                if not fuzz.has_time:
-                    raise FuzzTimeout()
-                display_stats.count += 1
+            arg_list = tuple(given_args)
+            #if len(arg_list) != fuzz.args_needed:
+            #    exit('got {} args? {}'.format(len(arg_list),next(test_variables)))
+            # unpack the arguments
+            if not fuzz.has_time:
+                raise FuzzTimeout()
+            display_stats.count += 1
+            try:
+                with max_execution_time(int(display_stats.remaining)):
+                    out = fn(*arg_list)
+                    # if out is a generator, empty it out.
+                    if hasattr(out, '__iter__') and (hasattr(out,'__next__') or hasattr(out,'next')):
+                        for i in out:
+                            pass
+                # the rest of this block is handling logging a success
+                input_types = tuple(type(i) for i in arg_list)
+                # if the input types have caused a crash before, add them to iffy_types
+                if input_types in storage.results[fn]['crash_input_types']:
+                    storage.results[fn]['iffy_input_types'].add(input_types)
+                # add the input types to the successful collection
+                if input_types not in storage.results[fn]['successful_input_types']:
+                    storage.results[fn]['successful_input_types'].append(input_types)
+                # add the output type to the output collection
+                storage.results[fn]['output_types'].add(type(out))
+                battle_tested.success_map.add(tuple(type(i) for i in arg_list))
                 try:
-                    with max_execution_time(int(display_stats.remaining)):
-                        out = fn(*arg_list)
-                        # if out is a generator, empty it out.
-                        if hasattr(out, '__iter__') and (hasattr(out,'__next__') or hasattr(out,'next')):
-                            for i in out:
-                                pass
-                    # the rest of this block is handling logging a success
-                    input_types = tuple(type(i) for i in arg_list)
-                    # if the input types have caused a crash before, add them to iffy_types
-                    if input_types in storage.results[fn]['crash_input_types']:
-                        storage.results[fn]['iffy_input_types'].add(input_types)
-                    # add the input types to the successful collection
-                    if input_types not in storage.results[fn]['successful_input_types']:
-                        storage.results[fn]['successful_input_types'].append(input_types)
-                    # add the output type to the output collection
-                    storage.results[fn]['output_types'].add(type(out))
-                    battle_tested.success_map.add(tuple(type(i) for i in arg_list))
-                    try:
-                        (fn_info.none_successful_io if out is None else fn_info.successful_io).append(io_example(arg_list, out))
-                    except:
-                        pass
-                except MaxExecutionTime:
+                    (fn_info.none_successful_io if out is None else fn_info.successful_io).append(io_example(arg_list, out))
+                except:
                     pass
-                except fuzz.allow as ex:
-                    pass
-                except Exception as ex:
-                    ex_message = ex.args[0] if (
-                        hasattr(ex, 'args') and len(ex.args) > 0
-                    ) else (ex.message if (
-                        hasattr(ex, 'message') and len(ex.message) > 0
-                    ) else '')
+            except MaxExecutionTime:
+                pass
+            except fuzz.allow as ex:
+                pass
+            except Exception as ex:
+                ex_message = ex.args[0] if (
+                    hasattr(ex, 'args') and len(ex.args) > 0
+                ) else (ex.message if (
+                    hasattr(ex, 'message') and len(ex.message) > 0
+                ) else '')
 
-                    storage.results[fn]['crash_input_types'].add(tuple(type(i) for i in arg_list))
+                storage.results[fn]['crash_input_types'].add(tuple(type(i) for i in arg_list))
 
-                    if keep_testing:
-                        tb_text = traceback_text()
-                        tb = '{}{}'.format(traceback_file_lines(tb_text),repr(type(ex)))
-                        battle_tested.crash_map[tb]={'type':type(ex),'message':ex_message,'args':arg_list,'arg_types':tuple(type(i) for i in arg_list)}
-                        storage.results[fn]['unique_crashes'][tb]=battle_tested.Crash(
-                            err_type=type(ex),
-                            message=repr(ex_message),
-                            args=arg_list,
-                            arg_types=tuple(type(i) for i in arg_list),
-                            trace=str(tb_text)
-                        )
-                        storage.results[fn]['exception_types'].add(type(ex))
+                if keep_testing:
+                    tb_text = traceback_text()
+                    tb = '{}{}'.format(traceback_file_lines(tb_text),repr(type(ex)))
+                    battle_tested.crash_map[tb]={'type':type(ex),'message':ex_message,'args':arg_list,'arg_types':tuple(type(i) for i in arg_list)}
+                    storage.results[fn]['unique_crashes'][tb]=battle_tested.Crash(
+                        err_type=type(ex),
+                        message=repr(ex_message),
+                        args=arg_list,
+                        arg_types=tuple(type(i) for i in arg_list),
+                        trace=str(tb_text)
+                    )
+                    storage.results[fn]['exception_types'].add(type(ex))
+                else:
+                    # get the step where the code broke
+                    tb_steps_full = [i for i in traceback_steps()]
+                    tb_steps_with_func_name = [i for i in tb_steps_full if i.splitlines()[0].endswith(fn.__name__)]
+
+                    if len(tb_steps_with_func_name)>0:
+                        tb = tb_steps_with_func_name[-1]
                     else:
-                        # get the step where the code broke
-                        tb_steps_full = [i for i in traceback_steps()]
-                        tb_steps_with_func_name = [i for i in tb_steps_full if i.splitlines()[0].endswith(fn.__name__)]
+                        tb = tb_steps_full[-1]
 
-                        if len(tb_steps_with_func_name)>0:
-                            tb = tb_steps_with_func_name[-1]
-                        else:
-                            tb = tb_steps_full[-1]
-
-                        error_string = format_error_message(
-                            fn.__name__,
-                            '{} - {}'.format(type(ex).__name__,ex_message),
-                            tb,
-                            (arg_list if len(arg_list)!=1 else '({})'.format(repr(arg_list[0])))
-                        )
-                        ex.message = error_string
-                        ex.args = error_string,
-                        raise ex
+                    error_string = format_error_message(
+                        fn.__name__,
+                        '{} - {}'.format(type(ex).__name__,ex_message),
+                        tb,
+                        (arg_list if len(arg_list)!=1 else '({})'.format(repr(arg_list[0])))
+                    )
+                    ex.message = error_string
+                    ex.args = error_string,
+                    raise ex
 
         fuzz.has_time = True
         fuzz.first_run = True
@@ -1170,8 +1236,8 @@ Parameters:
         # run the test
         try:
             gc_interval.start()
-            while 2:
-                test_args = strategy.example()
+            test_gen = battle_tested.generate_examples(args_needed, None if using_native_garbage else strategy)
+            for test_args in test_gen:
                 if verbose:
                     try:
                         s = '{}'.format(tuple(test_args))
@@ -1188,6 +1254,10 @@ Parameters:
             if not quiet:
                 print('  stopping fuzz early...')
         finally:
+            try:
+                test_gen.close()
+            except:
+                pass
             display_stats.interval.stop()
             display_stats(False)
             gc_interval.stop()
@@ -1357,7 +1427,7 @@ if __name__ == '__main__':
     # test fuzzing all the types
     for i in (str, bool, bytearray, bytes, complex, dict, float, frozenset, int, list, object, set, str, tuple):
         print('testing: {}'.format(i))
-        print(fuzz(i, verbose=True))
+        print(fuzz(i))
 
     def test_generator(a):
         for i in a:
@@ -1525,19 +1595,30 @@ if __name__ == '__main__':
             print('found one')
             crash_examples[e.args[0]]=(key,value)
 
-    from pprint import pprint
-
+    '''
     print('fuzzing fuzz')
-    r = fuzz(fuzz,seconds=10)
+    r = fuzz(fuzz, seconds=10)
 
-    assert len(r.crash_input_types) > 50 , 'fuzzing fuzz() changed expected behavior'
+    print(r)
+
+    #assert len(r.crash_input_types) > 50 , 'fuzzing fuzz() changed expected behavior'
     assert len(r.exception_types) == 1, 'fuzzing fuzz() changed expected behavior'
     assert len(r.iffy_input_types) == 0, 'fuzzing fuzz() changed expected behavior'
     assert len(r.output_types) == 0, 'fuzzing fuzz() changed expected behavior'
     assert len(r.successful_input_types) == 0, 'fuzzing fuzz() changed expected behavior'
     assert len(r.unique_crashes) == 1, 'fuzzing fuzz() changed expected behavior'
-
+    '''
     for f in storage.results.keys():
-        print(f.__module__, f.__name__, f.fuzz_id)
+        s = ''
+        try:
+            s+=f.__module__
+            s+=' '
+            s+=f.__name__
+            s+=' '
+            s+=f.fuzz_id
+        except:
+            pass
+        finally:
+            print(s)
 
     print('finished running battle_tested.py')
