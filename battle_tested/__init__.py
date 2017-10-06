@@ -981,20 +981,44 @@ Parameters:
         average = generators.avg()
         timer = generators.timer()
 
+
+        def calculate_window_speed():
+            w = calculate_window_speed.window
+            w.append(_inner_window_speed())
+            return int((1.0*sum(w))/len(w))
+        calculate_window_speed.window = deque(maxlen=4)
+        def _inner_window_speed():
+            cw = display_stats.count_window
+            tw = display_stats.time_window
+            if len(cw) == 2:
+                c = cw[1]-cw[0]
+                t = tw[1]-tw[0]
+                if c != 0 and t != 0:
+                    out = int(c*(1/t))
+                    return out if out > 0 else 1
+            return 1
+
+
         def display_stats(overwrite_line=True):
             now = next(display_stats.timer)
             display_stats.remaining = display_stats.test_time-now
             if not display_stats.quiet:
-                print('tests: {:<8}  {:>6}/sec {} {}s    '.format(
+                display_stats.count_window.append(display_stats.count)
+                display_stats.time_window.append(now)
+                print('tests: {:<8}  speed: {:>6}/sec  avg:{:>6}/sec {} {}s    '.format(
                     display_stats.count,
+                    calculate_window_speed(),
                     int(display_stats.count/(now if now > 0 else 0.001)),
                     '-' if overwrite_line else 'in',
                     int(display_stats.test_time-now)+1 if overwrite_line else display_stats.test_time
                 ), end=('\r' if overwrite_line else '\n'))
+
                 sys.stdout.flush()
         display_stats.test_time = seconds
         display_stats.remaining = display_stats.test_time
         display_stats.count = 0
+        display_stats.time_window = deque(maxlen=2)
+        display_stats.count_window = deque(maxlen=2)
         display_stats.timer = generators.timer()
         display_stats.average = generators.avg()
         display_stats.interval = IntervalTimer(0.16, display_stats)
@@ -1013,8 +1037,10 @@ Parameters:
             'successful_io':deque()
         }
 
-        fn.fuzz_time = time()
-        fn.fuzz_id = len(storage.results.keys())
+        def fn_info():
+            pass
+        fn_info.fuzz_time = time()
+        fn_info.fuzz_id = len(storage.results.keys())
 
         gc_interval = IntervalTimer(3, gc)
 
@@ -1023,9 +1049,9 @@ Parameters:
         def fuzz(given_args):
             if fuzz.first_run:
                 # stores examples that succeed and return something other than None
-                fn.successful_io = deque(maxlen=256)
+                fn_info.successful_io = deque(maxlen=256)
                 # stores examples that return None
-                fn.none_successful_io = deque(maxlen=256)
+                fn_info.none_successful_io = deque(maxlen=256)
             if fuzz.using_native_garbage and fuzz.first_run:
                 #print('using native garbage')
                 if len(storage.test_inputs)<100: # cache a few examples if there is nothing
@@ -1084,7 +1110,7 @@ Parameters:
                     storage.results[fn]['output_types'].add(type(out))
                     battle_tested.success_map.add(tuple(type(i) for i in arg_list))
                     try:
-                        (fn.none_successful_io if out is None else fn.successful_io).append(io_example(arg_list, out))
+                        (fn_info.none_successful_io if out is None else fn_info.successful_io).append(io_example(arg_list, out))
                     except:
                         pass
                 except MaxExecutionTime:
@@ -1169,11 +1195,11 @@ Parameters:
             results_dict['iffy_input_types'] = set(i for i in results_dict['crash_input_types'] if i in results_dict['successful_input_types'])
 
             # merge the io maps
-            for i in fn.none_successful_io:
-                if len(fn.successful_io)<fn.successful_io.maxlen:
-                    fn.successful_io.append(i)
+            for i in fn_info.none_successful_io:
+                if len(fn_info.successful_io)<fn_info.successful_io.maxlen:
+                    fn_info.successful_io.append(i)
             # remove io map with None examples
-            del fn.none_successful_io
+            del fn_info.none_successful_io
 
             storage.results[fn] = battle_tested.Result(
                 successful_input_types = PrettyTuple(set(i for i in results_dict['successful_input_types'] if i not in results_dict['iffy_input_types'] and i not in results_dict['crash_input_types'])),
@@ -1182,7 +1208,7 @@ Parameters:
                 output_types = PrettyTuple(results_dict['output_types']),
                 exception_types = PrettyTuple(results_dict['exception_types']),
                 unique_crashes = UniqueCrashContainer(results_dict['unique_crashes'].values()),
-                successful_io = fn.successful_io
+                successful_io = fn_info.successful_io
             )
             ## find the types that both crashed and succeeded
             #results_dict['iffy_input_types'] = set(i for i in results_dict['crash_input_types'] if i in results_dict['successful_input_types'])
@@ -1206,21 +1232,26 @@ Parameters:
         try:
             for f in storage.results[fn]._fields:
                 setattr(fn, f, getattr(storage.results[fn], f))
-        except:
-            pass
+        except: pass
         # try to store the unique crashes as readable attributes
         try:
-            for crash in fn.unique_crashes:
+            for crash in storage.results[fn].unique_crashes:
                 try:
-                    setattr(fn.unique_crashes, '{}_{}'.format(crash.err_type.__name__, [x.strip() for x in crash.trace.split(', ') if x.startswith('line ')][-1].replace(' ','_')), crash)
-                except:
-                    pass
+                    setattr(fn_info.unique_crashes, '{}_{}'.format(crash.err_type.__name__, [x.strip() for x in crash.trace.split(', ') if x.startswith('line ')][-1].replace(' ','_')), crash)
+                except: pass
                 try:
                     setattr(storage.results[fn].unique_crashes, '{}_{}'.format(crash.err_type.__name__, [x.strip() for x in crash.trace.split(', ') if x.startswith('line ')][-1].replace(' ','_')), crash)
-                except:
-                    pass
-        except:
-            pass
+                except: pass
+        except: pass
+        try:
+            def dummy_function(): pass
+            for a in dir(fn_info):
+                if a not in dir(dummy_function):
+                    try:
+                        setattr(fn, a, getattr(fn_info, a))
+                    except:
+                        pass
+        except: pass
         return storage.results[fn]
 
 
@@ -1318,6 +1349,11 @@ def time_all_versions_of(fn):
 
 
 if __name__ == '__main__':
+    # test fuzzing all the types
+    for i in (str, bool, bytearray, bytes, complex, dict, float, frozenset, int, list, object, set, str, tuple):
+        print('testing: {}'.format(i))
+        print(fuzz(i))
+
     def test_generator(a):
         for i in a:
             yield i
