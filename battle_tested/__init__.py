@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified 2017-10-06
-# @Last Modified time: 2017-09-30 22:00:43
+# @Last Modified time: 2017-10-08 17:35:45
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -49,7 +49,14 @@ import sys
 import traceback
 
 
-__all__ = 'battle_tested', 'fuzz', 'disable_traceback', 'enable_traceback', 'garbage', 'crash_map', 'success_map', 'results', 'stats', 'print_stats', 'function_versions', 'time_all_versions_of', 'easy_street'
+__all__ = 'battle_tested', 'fuzz', 'disable_traceback', 'enable_traceback', 'garbage', 'crash_map', 'success_map', 'results', 'stats', 'print_stats', 'function_versions', 'time_all_versions_of', 'easy_street', 'run_tests', 'multiprocess_garbage'
+
+try:
+    # try to set the encoding
+    reload(sys)
+    sys.setdefaultencoding('utf8')
+except:
+    pass
 
 def getsource(fn):
     ''' basically just inspect.getsource, only this one doesn't crash as much '''
@@ -82,37 +89,48 @@ def shorten(string, max_length=80, trailing_chars=3):
 class easy_street:
     @staticmethod
     def chars():
-        return iter(partial(choice, ascii_letters + digits), None )
+        test_chars = ascii_letters + digits
+        for _ in cycle([0]*300):
+            for combination in product(test_chars, repeat=4):
+                for i in combination:
+                    yield i
 
     @staticmethod
     def strings():
-        return iter(
-            partial(
-                choice,
-                list(set(findall(r'[a-zA-Z\_]{1,}',[
-                    v.__doc__ for v in globals().values() if hasattr(v, '__doc__')
-                ].__repr__()))) + [
-                    '',
-                    'exit("######## WARNING this code is executing strings blindly ########")'
-                ]
-            ), 0
-        )
+        test_strings = list(set(findall(r'[a-zA-Z\_]{1,}',[
+            v.__doc__ for v in globals().values() if hasattr(v, '__doc__')
+        ].__repr__()))) + [
+            '',
+            'exit("######## WARNING this code is executing strings blindly ########")'
+        ]
+        for _ in cycle([0]*300):
+            for combination in product(test_strings, repeat=4):
+                for i in combination:
+                    yield i
 
     @staticmethod
     def bools():
-        return iter(partial(choice, (True, False)), '')
+        booleans = (True, False)
+        for _ in cycle([0]*300):
+            for combination in product(booleans, repeat=4):
+                for i in combination:
+                    yield i
 
     @staticmethod
     def ints():
-        for i in iter(partial(choice, tuple(range(-33,65))), ''):
-            yield i
+        numbers = tuple(range(-33,65))
+        for _ in cycle([0]*300):
+            for combination in product(numbers, repeat=3):
+                for i in combination:
+                    yield i
 
     @staticmethod
     def floats():
-        rand_numerator = (i for i in easy_street.ints() if i != 0)
-        rand_denomerator = partial(next,(1.0*i for i in easy_street.ints() if i != 0))
-        for n in rand_numerator:
-            yield n/rand_denomerator()
+        non_zero_ints = (i for i in easy_street.ints() if i != 0)
+        stream1 = gen.chain(i[:8] for i in gen.chunks(non_zero_ints, 10))
+        stream2 = gen.chain(i[:8] for i in gen.chunks(non_zero_ints, 12))
+        for i in stream1:
+            yield next(stream2)/(1.0*i)
 
     @staticmethod
     def lists():
@@ -123,7 +141,7 @@ class easy_street:
         for _ in cycle([0]*300):
             for length in lengths:
                 for strat in strategies:
-                    yield [next(st) for st in islice(strat, length)]
+                    yield [st for st in islice(strat, length)]
 
     @staticmethod
     def tuples():
@@ -139,7 +157,7 @@ class easy_street:
         for _ in cycle([0]*300):
             for length in lengths:
                 for strat in strategies:
-                    yield { next(k):next(v) for k,v in gen.chunks(islice(strat,length*2), 2) }
+                    yield { k:v for k,v in gen.chunks(islice(strat,length*2), 2) }
 
     @staticmethod
     def sets():
@@ -150,7 +168,7 @@ class easy_street:
         for _ in cycle([0]*300):
             for length in lengths:
                 for strat in strategies:
-                    yield {next(i) for i in islice(strat, length)}
+                    yield {i for i in islice(strat, length)}
 
     @staticmethod
     def garbage():
@@ -165,9 +183,8 @@ class easy_street:
             easy_street.tuples()
         )
         while 1:
-            for strats in product(strategies, repeat=len(strategies)):
-                for strat in strats:
-                    yield next(strat)
+            for strat in gen.chain(product(strategies, repeat=len(strategies))):
+                yield next(strat)
 
 from multiprocessing import Process, Queue
 
@@ -215,7 +232,11 @@ def multiprocess_garbage():
         fast_alternative = easy_street.garbage()
         while 2:
             for s,q in jobs:
-                yield q.get() if q.full() else next(fast_alternative)
+                if q.full():
+                    yield q.get()
+                else:
+                    for i in range(10):
+                        yield next(fast_alternative)
     except (KeyboardInterrupt, SystemExit, GeneratorExit, StopIteration):
         for p in processes:
             p.terminate()
@@ -1423,7 +1444,8 @@ def time_all_versions_of(fn):
     print('\n{}'.format('-'*60))
 
 
-if __name__ == '__main__':
+def run_tests():
+    ''' this is where all of the primary functionality of battle_tested is tested '''
     # test fuzzing all the types
     for i in (str, bool, bytearray, bytes, complex, dict, float, frozenset, int, list, object, set, str, tuple):
         print('testing: {}'.format(i))
@@ -1432,13 +1454,13 @@ if __name__ == '__main__':
     def test_generator(a):
         for i in a:
             yield i
-    #print(fuzz(test_generator, seconds=10))
+    print(fuzz(test_generator, seconds=10))
     def test_generator(a):
         for i in a:
             yield i,i
-    #print(fuzz(test_generator, seconds=10))
+    print(fuzz(test_generator, seconds=10))
 
-    #print(time_all_versions_of(test_generator))
+    print(time_all_versions_of(test_generator))
 
     # try the custom strategy syntax
     @battle_tested(strategy=st.text(),max_tests=50)
@@ -1448,9 +1470,9 @@ if __name__ == '__main__':
         else:
             return a in b
 
-    #print(dir(custom_text_strategy))
-    #for i in custom_text_strategy.successful_io:
-    #    print(i)
+    print(dir(custom_text_strategy))
+    for i in ('successful_io','crash_input_types','exception_types','iffy_input_types','unique_crashes','output_types','successful_input_types'):
+        assert hasattr(custom_text_strategy, i), 'custom_text_strategy doesnt have a {} attribute'.format(i)
 
     def custom_text_fuzz_strategy(a,b):
         return a in b
@@ -1595,30 +1617,21 @@ if __name__ == '__main__':
             print('found one')
             crash_examples[e.args[0]]=(key,value)
 
-    '''
-    print('fuzzing fuzz')
-    r = fuzz(fuzz, seconds=10)
-
-    print(r)
-
-    #assert len(r.crash_input_types) > 50 , 'fuzzing fuzz() changed expected behavior'
-    assert len(r.exception_types) == 1, 'fuzzing fuzz() changed expected behavior'
-    assert len(r.iffy_input_types) == 0, 'fuzzing fuzz() changed expected behavior'
-    assert len(r.output_types) == 0, 'fuzzing fuzz() changed expected behavior'
-    assert len(r.successful_input_types) == 0, 'fuzzing fuzz() changed expected behavior'
-    assert len(r.unique_crashes) == 1, 'fuzzing fuzz() changed expected behavior'
-    '''
     for f in storage.results.keys():
-        s = ''
+        s = '\n'
         try:
             s+=f.__module__
             s+=' '
             s+=f.__name__
             s+=' '
-            s+=f.fuzz_id
+            s+=str([i for i in dir(f) if not i.startswith('_')])
         except:
             pass
         finally:
             print(s)
 
-    print('finished running battle_tested.py')
+    print('battle_tested test complete...')
+
+
+if __name__ == '__main__':
+    run_tests()
