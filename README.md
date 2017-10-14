@@ -7,6 +7,10 @@ An automated library that puts functions through hell so in production your code
 pip install --user battle_tested
 ```
 
+## What does this tool solve?
+
+![fuzz test questions](https://raw.githubusercontent.com/CodyKochmann/battle_tested/master/fuzz_test_questions.png)
+
 ## iPython Demo
 
 ```python
