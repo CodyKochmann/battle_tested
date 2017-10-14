@@ -9,6 +9,10 @@ pip install --user battle_tested
 
 ## What does this tool solve?
 
+Python allows you to do pretty much whatever you want. This is a good thing for the most part however it creates the opportunity for unexpected events to occur. One of `battle_tested`'s strongest assets is its ability to show you all of those possibilities so there are no surprises. In a way, it surpasses learning about the behavior of code by reading docstrings because all behaviors are recorded during a fuzz.
+
+For example, the image below shows just how much is brought to light about a piece of code without needing to read a textbook's worth of documentation (which almost never exists) just to learn about the full behavior of a single function.
+
 ![fuzz test questions](https://raw.githubusercontent.com/CodyKochmann/battle_tested/master/fuzz_test_questions.png)
 
 ## iPython Demo
