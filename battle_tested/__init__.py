@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
-# @Last Modified 2017-10-06
-# @Last Modified time: 2017-10-08 17:35:45
+# @Last Modified 2017-10-16
+# @Last Modified time: 2017-10-16 14:41:19
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -190,9 +190,9 @@ from multiprocessing import Process, Queue
 
 def background_strategy(strat, q):
     example = strat.example
-    put = q.put
-    while 2:
-        put(example())
+    q_put = q.put
+    for _ in gen.loop():
+        q_put(example())
 
 def multiprocess_garbage():
     basics = (
@@ -230,12 +230,12 @@ def multiprocess_garbage():
 
     try:
         fast_alternative = easy_street.garbage()
-        while 2:
-            for s,q in jobs:
-                if q.full():
+        for _ in cycle([0]*300):  # loop forever
+            for _, q in jobs: # round robin across jobs
+                if q.full(): # if the queue is full, yield the value
                     yield q.get()
                 else:
-                    for i in range(10):
+                    for _ in range(10): # dont waste time looking for a full queue, be productive while you wait
                         yield next(fast_alternative)
     except (KeyboardInterrupt, SystemExit, GeneratorExit, StopIteration):
         for p in processes:
