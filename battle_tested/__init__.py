@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified 2017-10-18
-# @Last Modified time: 2017-10-18 11:58:29
+# @Last Modified time: 2017-10-18 12:13:11
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -992,11 +992,9 @@ Parameters:
     crash_map = _crash_map()
     success_map = _success_map()
 
-    # this breaks when recieving multiple strategies
     @staticmethod
     def generate_examples(args_needed=1, strategy=None):
         """ this is the primary argument generator that battle_tested runs on """
-        #logging.warning('generate_examples recieved: {}, {}'.format(args_needed, strategy))
         battle_tested.__verify_args_needed__(args_needed)
         if strategy is not None: # logic for a custom strategy
             battle_tested.__verify_strategy__(strategy)
