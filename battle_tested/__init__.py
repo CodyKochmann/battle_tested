@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified 2017-10-18
-# @Last Modified time: 2017-10-18 12:13:11
+# @Last Modified time: 2017-10-18 18:02:32
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -47,6 +47,7 @@ import logging
 import signal
 import sys
 import traceback
+import os
 
 
 __all__ = 'battle_tested', 'fuzz', 'disable_traceback', 'enable_traceback', 'garbage', 'crash_map', 'success_map', 'results', 'stats', 'print_stats', 'function_versions', 'time_all_versions_of', 'easy_street', 'run_tests', 'multiprocess_garbage'
@@ -68,6 +69,30 @@ def getsource(fn):
             return '{}'.format(fn)
         except:
             return ''
+
+def pin_to_cpu(core_number):
+    ''' pin the current process to a specific cpu to avoid dumping L1 cache'''
+    assert type(core_number) == int, 'pin_to_cpu needs an int as the argument'
+    # only run if os has sched_setaffinity and getpid available
+    try:
+        os.sched_setaffinity(os.getpid(), (core_number,))
+    except:
+        # just attempt this, it wont work on EVERY system in existence
+        pass
+
+pin_to_cpu(0)
+
+def renice(new_niceness):
+    ''' renice the current process calling this function to the new input '''
+    assert type(new_niceness) == int, 'renice needs an int as its argument'
+
+    try:
+        os.nice(new_niceness)
+    except:
+        # just attempt this, it wont work on EVERY system in existence
+        pass
+
+renice(15)
 
 def shorten(string, max_length=80, trailing_chars=3):
     ''' trims the 'string' argument down to 'max_length' to make previews to long string values '''
@@ -190,6 +215,11 @@ from multiprocessing import Process, Queue
 from time import sleep
 
 def background_strategy(strat, q):
+    renice(20) # maximize niceness
+    if hasattr(os, 'cpu_count'):
+        cpu_count = os.cpu_count()
+        if cpu_count > 1:
+            pin_to_cpu(randint(1, cpu_count-1))
     example = strat.example
     q_put = q.put
     for _ in gen.loop():
@@ -370,7 +400,8 @@ class storage():
         storage.build_new_examples()
 
 try:
-    for i in islice(easy_street.garbage(), 10000):
+
+    for i in islice(easy_street.garbage(), 32):
         storage.test_inputs.append(i)
 except Exception as e:
     pass
@@ -1550,8 +1581,8 @@ def run_tests():
     @battle_tested(allow=(AssertionError,), keep_testing=False)
     def allowed_to_assert_and_stop_on_fail(a,b):
         assert a==b, 'a needs to equal b'
-    fuzz(lambda i:max(i), allow=(ValueError,))
-    fuzz(lambda i:max(i), keep_testing=False, allow=(ValueError,TypeError))
+    fuzz(max, allow=(ValueError,))
+    fuzz(max, keep_testing=False, allow=(ValueError,TypeError))
 
 
     # test going quiet
