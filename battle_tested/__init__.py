@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
-# @Last Modified 2017-10-16
-# @Last Modified time: 2017-10-16 14:41:19
+# @Last Modified 2017-10-18
+# @Last Modified time: 2017-10-18 11:43:06
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -187,12 +187,14 @@ class easy_street:
                 yield next(strat)
 
 from multiprocessing import Process, Queue
+from time import sleep
 
 def background_strategy(strat, q):
     example = strat.example
     q_put = q.put
     for _ in gen.loop():
         q_put(example())
+        sleep(0.1) # a lot of time is being wasted de-serializing objects
 
 def multiprocess_garbage():
     basics = (
@@ -375,7 +377,7 @@ except Exception as e:
 
 storage.build_new_examples.garbage = garbage
 
-class io_example(type):
+class io_example(object):
     """ demonstrates the behavior of input and output """
     def __init__(self, input_args, output):
         self.input = input_args
@@ -1589,6 +1591,7 @@ def run_tests():
 
     # this tests a long fuzz
     r=fuzz(sample3, seconds=20)
+    assert len(r.successful_io)>0, 'succesful_io was empty'
 
     print(r.successful_io)
 
