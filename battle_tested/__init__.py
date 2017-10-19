@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified 2017-10-19
-# @Last Modified time: 2017-10-19 11:03:33
+# @Last Modified time: 2017-10-19 13:26:48
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -418,7 +418,7 @@ class io_example(object):
     def __str__(self):
         return '{} -> {}'.format(self.input,self.output)
     def __hash__(self):
-        return hash(io_example) + hash(self.__repr__())
+        return hash('io_example') + hash(self.__repr__())
     def __eq__(self, target):
         return hasattr(target, '__hash__') and self.__hash__() == target.__hash__()
 
@@ -777,12 +777,35 @@ class ipython_tools(object):
 
 
 def function_arg_count(fn):
-    """ generates a list of the given function's arguments """
+    """ finds how many args a function has """
     assert callable(fn), 'function_arg_count needed a callable function, not {0}'.format(repr(fn))
     if hasattr(fn, '__code__') and hasattr(fn.__code__, 'co_argcount'):
+        # normal functions
         return fn.__code__.co_argcount
+    elif hasattr(fn, 'args') and hasattr(fn, 'func') and hasattr(fn, 'keywords'):
+        # partials
+        return function_arg_count(fn.func) - (len(fn.args)+len(fn.keywords))
     else:
+        number_of_args_that_work = []
+        for i in range(1,64):
+            try:
+                fn(*range(i))
+            except TypeError as ex:
+                search = findall(r'((takes (exactly )?(one|[0-9]{1,}))|(missing (one|[0-9]{1,})))', repr(ex))
+                our_specific_type_error = len(repr(findall(r'((takes (exactly )?(one|[0-9]{1,}))|(missing (one|[0-9]{1,})))', repr(ex))))>10
+                if not our_specific_type_error: # if you find something
+                    number_of_args_that_work.append(i)
+                pass
+            except Exception as ex:
+                #number_of_args_that_work.append(i)
+                pass
+            else:
+                number_of_args_that_work.append(i)
+        if len(number_of_args_that_work):
+            return min(number_of_args_that_work)
+        #logging.warning('using backup plan')
         return 1 # not universal, but for now, enough... :/
+
 
 class battle_tested(object):
     """
@@ -1112,9 +1135,17 @@ Parameters:
         battle_tested.__verify_allow__(allow)
         battle_tested.__verify_strategy__(strategy)
 
+        using_native_garbage = hash(strategy) == hash(garbage)
+
         args_needed = function_arg_count(fn)
 
-        using_native_garbage = hash(strategy) == hash(garbage)
+        # code for instance methods
+        if hasattr(fn, '__self__'):
+            # create a partial with fn.__self__ as the first arg
+            #fn = partial(fn, fn.__self__)
+            _name = repr(fn)
+            fn = partial(fn)
+            fn.__name__ = _name
 
         #if type(strategy) == tuple:
         #    assert len(strategy) == args_needed, 'invalid number of strategies, needed {} got {}'.format(args_needed, len(strategy))
@@ -1125,7 +1156,7 @@ Parameters:
         #    strategy = st.lists(elements=strategy, max_size=args_needed, min_size=args_needed)
 
         if not quiet:
-            print('testing: {0}()'.format(fn.__name__))
+            print('testing: {0}()'.format(getattr(fn, '__name__', repr(fn))))
 
         battle_tested.crash_map.clear()
         battle_tested.success_map.clear()
@@ -1238,6 +1269,10 @@ Parameters:
                 storage.results[fn]['output_types'].add(type(out))
                 battle_tested.success_map.add(tuple(type(i) for i in arg_list))
                 try:
+                    (fn_info.none_successful_io if out is None else fn_info.successful_io).append(io_example(arg_list, out))
+                    '''
+                    # I want to add this, but it wrecks the fuzzer's performance :(
+
                     io_object = io_example(arg_list, out)
                     if out is None:
                         if io_object not in fn_info.none_successful_io:
@@ -1245,6 +1280,7 @@ Parameters:
                     else:
                         if io_object not in fn_info.successful_io:
                             fn_info.successful_io.append(io_object)
+                    '''
                 except:
                     pass
             except MaxExecutionTime:
@@ -1492,6 +1528,10 @@ def time_all_versions_of(fn):
 
 def run_tests():
     ''' this is where all of the primary functionality of battle_tested is tested '''
+    # test instance methods
+    l = list(range(10))
+    print(fuzz(l.append))
+
     # test fuzzing all the types
     for i in (str, bool, bytearray, bytes, complex, dict, float, frozenset, int, list, object, set, str, tuple):
         print('testing: {}'.format(i))
