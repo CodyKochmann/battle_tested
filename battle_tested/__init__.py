@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified 2017-10-19
-# @Last Modified time: 2017-10-19 13:26:48
+# @Last Modified time: 2017-10-19 14:04:40
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -1085,7 +1085,7 @@ Parameters:
                 garbage.close()
 
     @staticmethod
-    def fuzz(fn, seconds=3, max_tests=1000000, verbose=False, keep_testing=True, quiet=False, allow=(), strategy=garbage):
+    def fuzz(fn, seconds=3, max_tests=1000000000, verbose=False, keep_testing=True, quiet=False, allow=(), strategy=garbage):
         """
 
 fuzz - battle_tested's primary weapon for testing functions.
@@ -1144,8 +1144,16 @@ Parameters:
             # create a partial with fn.__self__ as the first arg
             #fn = partial(fn, fn.__self__)
             _name = repr(fn)
+            _type = type(fn).__name__
+            #print(dir(fn))
+            # wrap the method in a hashable wrapper
             fn = partial(fn)
             fn.__name__ = _name
+            # if fn is not a builtin, chop off one arg needed
+            if 'builtin' not in _type and args_needed > 1:
+                args_needed = args_needed-1
+            del _name
+            del _type
 
         #if type(strategy) == tuple:
         #    assert len(strategy) == args_needed, 'invalid number of strategies, needed {} got {}'.format(args_needed, len(strategy))
@@ -1529,6 +1537,14 @@ def time_all_versions_of(fn):
 def run_tests():
     ''' this is where all of the primary functionality of battle_tested is tested '''
     # test instance methods
+
+    class TestClass(tuple):
+        def testmethod(self,a,b,c,d,e):
+            return a,b,c,d
+
+    tc = TestClass([1,2,3])
+    print(fuzz(tc.testmethod))
+
     l = list(range(10))
     print(fuzz(l.append))
 
