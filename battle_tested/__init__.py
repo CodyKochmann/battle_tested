@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
-# @Last Modified 2017-10-18
-# @Last Modified time: 2017-10-18 18:02:32
+# @Last Modified 2017-10-19
+# @Last Modified time: 2017-10-19 11:03:33
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -400,7 +400,7 @@ class storage():
         storage.build_new_examples()
 
 try:
-
+    storage.test_inputs.append('waffles') # easter egg :)
     for i in islice(easy_street.garbage(), 32):
         storage.test_inputs.append(i)
 except Exception as e:
@@ -415,8 +415,12 @@ class io_example(object):
         self.output = output
     def __repr__(self):
         return '{} -> {}'.format(self.input,self.output)
-    def __repr__(self):
+    def __str__(self):
         return '{} -> {}'.format(self.input,self.output)
+    def __hash__(self):
+        return hash(io_example) + hash(self.__repr__())
+    def __eq__(self, target):
+        return hasattr(target, '__hash__') and self.__hash__() == target.__hash__()
 
 class suppress():
     """ suppress exceptions coming from certain code blocks """
@@ -1192,9 +1196,9 @@ Parameters:
         fn_info.fuzz_time = time()
         fn_info.fuzz_id = len(storage.results.keys())
         # stores examples that succeed and return something other than None
-        fn_info.successful_io = deque(maxlen=256)
+        fn_info.successful_io = deque(maxlen=512)
         # stores examples that return None
-        fn_info.none_successful_io = deque(maxlen=256)
+        fn_info.none_successful_io = deque(maxlen=512)
 
         gc_interval = IntervalTimer(3, gc)
 
@@ -1234,7 +1238,13 @@ Parameters:
                 storage.results[fn]['output_types'].add(type(out))
                 battle_tested.success_map.add(tuple(type(i) for i in arg_list))
                 try:
-                    (fn_info.none_successful_io if out is None else fn_info.successful_io).append(io_example(arg_list, out))
+                    io_object = io_example(arg_list, out)
+                    if out is None:
+                        if io_object not in fn_info.none_successful_io:
+                            fn_info.none_successful_io.append(io_object)
+                    else:
+                        if io_object not in fn_info.successful_io:
+                            fn_info.successful_io.append(io_object)
                 except:
                     pass
             except MaxExecutionTime:
