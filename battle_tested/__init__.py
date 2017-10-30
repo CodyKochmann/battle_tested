@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
-# @Last Modified 2017-10-19
-# @Last Modified time: 2017-10-19 14:04:40
+# @Last Modified 2017-10-30
+# @Last Modified time: 2017-10-30 14:05:37
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -214,17 +214,27 @@ class easy_street:
 from multiprocessing import Process, Queue
 from time import sleep
 
-def background_strategy(strat, q):
+def background_strategy(strats, q):
     renice(20) # maximize niceness
     if hasattr(os, 'cpu_count'):
         cpu_count = os.cpu_count()
         if cpu_count > 1:
             pin_to_cpu(randint(1, cpu_count-1))
-    example = strat.example
     q_put = q.put
-    for _ in gen.loop():
-        q_put(example())
-        sleep(0.1) # a lot of time is being wasted de-serializing objects
+    for strat in cycle(strats):
+        q_put(strat.example())
+
+from graphdb import GraphDB
+
+def background_manager(child_queues, q):
+    db = GraphDB('/tmp/fuzz.db')
+    for o in db.list_objects():
+        q.put(o[-1])
+    for cq in cycle(child_queues):
+        if cq.full():
+            item = cq.get()
+            db.store_item(item)
+            q.put(item)
 
 def multiprocess_garbage():
     basics = (
@@ -250,7 +260,24 @@ def multiprocess_garbage():
 
     strats = basics + lists + tuples + sets + dictionaries
 
-    jobs = [(s, Queue(1)) for s in strats]
+    cpu_count = os.cpu_count()
+
+    if cpu_count > 2:
+        cores_used_for_generation = cpu_count - 2
+    else:
+        cores_used_for_generation = 1
+
+
+
+    jobs = cycle([[] for _ in range(cores_used_for_generation)])
+
+    for s in strats:
+        next(jobs).append(s)
+
+    jobs = [(next(jobs), Queue(1)) for _ in range(cores_used_for_generation)]
+
+
+    #jobs = [(s, Queue(1)) for s in strats]
 
     processes = [
         Process(target=background_strategy, args=j)
@@ -260,20 +287,27 @@ def multiprocess_garbage():
     for p in processes:
         p.start()
 
+    gather_queue = Queue(1)
+    gather_process = Process(target=background_manager, args=([q for _, q in jobs], gather_queue))
+    gather_process.start()
+
     try:
         fast_alternative = easy_street.garbage()
-        for _ in cycle([0]*300):  # loop forever
-            for _, q in jobs: # round robin across jobs
-                if q.full(): # if the queue is full, yield the value
-                    yield q.get()
-                else:
-                    for _ in range(10): # dont waste time looking for a full queue, be productive while you wait
-                        yield next(fast_alternative)
+        for _ in gen.loop():  # loop forever
+            if gather_queue.full(): # if the queue is full, yield the value
+                yield gather_queue.get()
+            else:
+                for _ in range(10): # dont waste time looking for a full queue, be productive while you wait
+                    yield next(fast_alternative)
     except (KeyboardInterrupt, SystemExit, GeneratorExit, StopIteration):
+        gather_process.terminate()
+        gather_process.join()
         for p in processes:
             p.terminate()
             p.join()
     finally:
+        gather_process.terminate()
+        gather_process.join()
         for p in processes:
             p.terminate()
             p.join()
