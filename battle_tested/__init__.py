@@ -111,7 +111,7 @@ def shorten(string, max_length=80, trailing_chars=3):
         )
     )
 
-class easy_street:
+class easy_street: ###MP easy_street(object) for py2 compatibility?  separate file for this class?
     @staticmethod
     def chars():
         test_chars = ascii_letters + digits
@@ -122,12 +122,10 @@ class easy_street:
 
     @staticmethod
     def strings():
-        test_strings = list(set(findall(r'[a-zA-Z\_]{1,}',[
-            v.__doc__ for v in globals().values() if hasattr(v, '__doc__')
-        ].__repr__()))) + [
-            '',
-            'exit("######## WARNING this code is executing strings blindly ########")'
-        ]
+        test_strings = list(set(findall(r'[a-zA-Z\_]{1,}',
+            [v.__doc__ for v in globals().values() if hasattr(v, '__doc__')].
+            __repr__()))) + ['', 'exit("######## WARNING this code is executing strings blindly ########")']
+
         for _ in cycle([0]*300):
             for combination in product(test_strings, repeat=4):
                 for i in combination:
@@ -155,42 +153,48 @@ class easy_street:
         stream1 = gen.chain(i[:8] for i in gen.chunks(non_zero_ints, 10))
         stream2 = gen.chain(i[:8] for i in gen.chunks(non_zero_ints, 12))
         for i in stream1:
-            yield next(stream2)/(1.0*i)
+            yield next(stream2)/(1.0*i)  ###MP is this correct / for both py2/3?
 
     @staticmethod
     def lists():
         strategies = easy_street.strings(), easy_street.ints(), easy_street.floats(), easy_street.bools()
         strategies = list(gen.chain(product(strategies, repeat=len(strategies))))
-        lengths = cycle(list(range(0, 21)))
+        lengths = cycle(list(range(0, 21)))   ###MP what does 21 come from?  MAGIC NUMBER
+        fastseq = cycle([0]*300)    ### fastest sequence for looping
 
-        for _ in cycle([0]*300):
+
+        ###MP The following stanza is just every vs every looper.
+        ### There's gotta be a better way to do it?  product?  starmap?
+        for _ in fastseq:
             for length in lengths:
                 for strat in strategies:
-                    yield [st for st in islice(strat, length)]
+                    yield [st for st in islice(strat, length)]   ###MP partial for islice?
 
     @staticmethod
     def tuples():
-        for i in easy_street.lists():
+        for i in easy_street.lists():  ###MP generator expression?
             yield tuple(i)
 
     @staticmethod
     def dicts():
         strategies = easy_street.strings(), easy_street.ints(), easy_street.floats(), easy_street.bools()
         strategies = list(gen.chain(product(strategies, repeat=len(strategies))))
-        lengths = cycle(list(range(0, 21)))
+        lengths = cycle(list(range(0, 21))) ###MP same setup as in lists(), why not make it a class variable?
+        fastseq = cycle([0]*300)
 
-        for _ in cycle([0]*300):
+        for _ in fastseq:
             for length in lengths:
                 for strat in strategies:
-                    yield { k:v for k,v in gen.chunks(islice(strat,length*2), 2) }
+                    yield { k:v for k,v in gen.chunks(islice(strat, length*2), 2) }   ###MP MAGIC NUMBERS
 
     @staticmethod
     def sets():
         strategies = easy_street.strings(), easy_street.ints(), easy_street.floats(), easy_street.bools()
         strategies = list(gen.chain(product(strategies, repeat=len(strategies))))
         lengths = cycle(list(range(0, 21)))
+        fastseq = cycle([0]*300)
 
-        for _ in cycle([0]*300):
+        for _ in fastseq:
             for length in lengths:
                 for strat in strategies:
                     yield {i for i in islice(strat, length)}
@@ -207,8 +211,8 @@ class easy_street:
             easy_street.lists(),
             easy_street.tuples()
         )
-        while 1:
-            for strat in gen.chain(product(strategies, repeat=len(strategies))):
+        while 1:    ###MP why not cycle([0]*300) or while 2?
+            for strat in gen.chain(product(strategies, repeat=len(strategies))):  ###MP why not generator expr?
                 yield next(strat)
 
 from multiprocessing import Process, Queue
@@ -218,7 +222,7 @@ def background_strategy(strats, q):
     renice(20) # maximize niceness
     if hasattr(os, 'cpu_count'):
         cpu_count = os.cpu_count()
-        if cpu_count > 1:
+        if cpu_count > 1:   ###MP redundant?  when is cpu_count <= 1?
             pin_to_cpu(randint(1, cpu_count-1))
     q_put = q.put
     for strat in cycle(strats):
@@ -227,14 +231,15 @@ def background_strategy(strats, q):
 from graphdb import GraphDB
 
 def background_manager(child_queues, q):
-    db = GraphDB('/tmp/fuzz.db')
+    db = GraphDB('/tmp/fuzz.db')    ###MP use NamedTemporaryFile
     for o in db.list_objects():
         q.put(o[-1])
     for cq in cycle(child_queues):
         if cq.full():
-            item = cq.get()
-            db.store_item(item)
-            q.put(item)
+            ###MP pull out cq.get and db.store_item to save some attr resolutions? inside of a cycle loop so it might be a gain
+            item = cq.get() ### LOAD
+            db.store_item(item) ### CACHE STORE
+            q.put(item) ### STORE
 
 def multiprocess_garbage():
     basics = (
@@ -262,7 +267,7 @@ def multiprocess_garbage():
 
     cpu_count = os.cpu_count()
 
-    if cpu_count > 2:
+    if cpu_count > 2:   ### Do we care if it's real cores of HT cores? and which ones are which, so they don't 'share' a physical core?
         cores_used_for_generation = cpu_count - 2
     else:
         cores_used_for_generation = 1
