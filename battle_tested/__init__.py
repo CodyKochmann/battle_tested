@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified 2017-10-30
-# @Last Modified time: 2017-11-01 08:45:58
+# @Last Modified time: 2017-11-01 09:25:45
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -38,7 +38,7 @@ from graphdb import GraphDB
 from hypothesis import given, strategies as st, settings, Verbosity, unlimited
 from hypothesis.errors import HypothesisException
 from itertools import product, cycle, chain, islice
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, cpu_count as multi_cpu_count
 from prettytable import PrettyTable
 from random import choice, randint
 from re import findall
@@ -64,7 +64,7 @@ attempt(lambda: (reload(sys), sys.setdefaultencoding('utf8')))
 class hardware:
     ''' single reference of what hardware the system is working with '''
     # get the count of cpu cores, if it fails, assume 1 for safety
-    cpu_count = attempt(os.cpu_count, default_output=1)
+    cpu_count = attempt(multi_cpu_count, default_output=1)
     single_core = cpu_count == 1
 
 def db_path(db_name='battle_tested.db'):
