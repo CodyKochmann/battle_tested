@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified 2017-10-30
-# @Last Modified time: 2017-10-30 14:05:37
+# @Last Modified time: 2017-11-01 08:45:58
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -33,31 +33,58 @@ from __future__ import print_function, unicode_literals
 from collections import deque
 from functools import wraps, partial
 from gc import collect as gc
+from generators.inline_tools import attempt
+from graphdb import GraphDB
 from hypothesis import given, strategies as st, settings, Verbosity, unlimited
 from hypothesis.errors import HypothesisException
 from itertools import product, cycle, chain, islice
+from multiprocessing import Process, Queue
 from prettytable import PrettyTable
 from random import choice, randint
 from re import findall
 from stricttuple import stricttuple
 from string import ascii_letters, digits
+from time import sleep
 from time import time
 import generators as gen
 import logging
+import os
 import signal
 import sys
 import traceback
-import os
+
 
 
 __all__ = 'battle_tested', 'fuzz', 'disable_traceback', 'enable_traceback', 'garbage', 'crash_map', 'success_map', 'results', 'stats', 'print_stats', 'function_versions', 'time_all_versions_of', 'easy_street', 'run_tests', 'multiprocess_garbage'
 
-try:
-    # try to set the encoding
-    reload(sys)
-    sys.setdefaultencoding('utf8')
-except:
-    pass
+
+# try to set the encoding
+attempt(lambda: (reload(sys), sys.setdefaultencoding('utf8')))
+
+class hardware:
+    ''' single reference of what hardware the system is working with '''
+    # get the count of cpu cores, if it fails, assume 1 for safety
+    cpu_count = attempt(os.cpu_count, default_output=1)
+    single_core = cpu_count == 1
+
+def db_path(db_name='battle_tested.db'):
+    ''' returns the full path of battle_tested's database '''
+    from os.path import dirname, join, isdir
+    # path of this file
+    this_files_path = dirname(__file__)
+    # path of where dbs are stored
+    db_dir = join(this_files_path, 'db')
+    # makr the db_dir if it doesnt exist
+    if not isdir(db_dir):
+        from os import mkdir, chmod
+        from stat import S_IRUSR, S_IWUSR, S_IXUSR
+        # make the directory
+        mkdir(db_dir)
+        # try to set the permissions correctly
+        # this is in 'attempt' because it might fail on some systems
+        attempt(lambda: chmod(db_dir, (S_IRUSR | S_IWUSR | S_IXUSR)))
+    # return the full path of the db
+    return join(db_dir, db_name)
 
 def getsource(fn):
     ''' basically just inspect.getsource, only this one doesn't crash as much '''
@@ -65,34 +92,22 @@ def getsource(fn):
     try:
         return getsource(fn)
     except:
-        try:
-            return '{}'.format(fn)
-        except:
-            return ''
+        return attempt(lambda: '{}'.format(fn), default_output='')
 
 def pin_to_cpu(core_number):
     ''' pin the current process to a specific cpu to avoid dumping L1 cache'''
     assert type(core_number) == int, 'pin_to_cpu needs an int as the argument'
-    # only run if os has sched_setaffinity and getpid available
-    try:
-        os.sched_setaffinity(os.getpid(), (core_number,))
-    except:
-        # just attempt this, it wont work on EVERY system in existence
-        pass
-
-pin_to_cpu(0)
+    # just attempt this, it wont work on EVERY system in existence
+    attempt(lambda: os.sched_setaffinity(os.getpid(), (core_number,)))
 
 def renice(new_niceness):
     ''' renice the current process calling this function to the new input '''
     assert type(new_niceness) == int, 'renice needs an int as its argument'
+    # just attempt this, it wont work on EVERY system in existence
+    attempt(lambda: os.nice(new_niceness))
 
-    try:
-        os.nice(new_niceness)
-    except:
-        # just attempt this, it wont work on EVERY system in existence
-        pass
-
-renice(15)
+pin_to_cpu(0)  # pin this main process to the first core
+renice(15)  # renice this main process, idk why 15, but it gives room for priorities above and below
 
 def shorten(string, max_length=80, trailing_chars=3):
     ''' trims the 'string' argument down to 'max_length' to make previews to long string values '''
@@ -111,12 +126,12 @@ def shorten(string, max_length=80, trailing_chars=3):
         )
     )
 
-class easy_street: ###MP easy_street(object) for py2 compatibility?  separate file for this class?
-    @staticmethod
+class easy_street:
+    ''' This is a namespace for high speed test generation of various types '''
 
+    @staticmethod
     def chars():
         test_chars = ascii_letters + digits
-
         for _ in gen.loop():
             for combination in product(test_chars, repeat=4):
                 for i in combination:
@@ -124,9 +139,15 @@ class easy_street: ###MP easy_street(object) for py2 compatibility?  separate fi
 
     @staticmethod
     def strings():
-        test_strings = list(set(findall(r'[a-zA-Z\_]{1,}',
-            [v.__doc__ for v in globals().values() if hasattr(v, '__doc__')].
-            __repr__()))) + ['', 'exit("######## WARNING this code is executing strings blindly ########")']
+        test_strings = [
+            '',
+            'exit("######## WARNING this code is executing strings blindly ########")'
+        ]
+        # this snippet rips out every word from doc strings
+        test_strings += list(set(findall(
+            r'[a-zA-Z\_]{1,}',
+            [v.__doc__ for v in globals().values() if hasattr(v, '__doc__')].__repr__()
+        )))
 
         for _ in gen.loop():
             for combination in product(test_strings, repeat=4):
@@ -137,54 +158,52 @@ class easy_street: ###MP easy_street(object) for py2 compatibility?  separate fi
     def bools():
         booleans = (True, False)
         for _ in gen.loop():
-            for combination in product(booleans, repeat=4): ###MP why 4?  MAGIC NUMBERS
+            for combination in product(booleans, repeat=4):
                 for i in combination:
                     yield i
 
     @staticmethod
     def ints():
-        numbers = tuple(range(-33,65))  ###MP why -33,65?  I'm guessing easy street likely numbers
+        numbers = tuple(range(-33,65))
         for _ in gen.loop():
-            for combination in product(numbers, repeat=3):  ### why 3? MAGIC NUMBERS
+            for combination in product(numbers, repeat=3):
                 for i in combination:
                     yield i
 
     @staticmethod
     def floats():
         non_zero_ints = (i for i in easy_street.ints() if i != 0)
-        stream1 = gen.chain(i[:8] for i in gen.chunks(non_zero_ints, 10))   ###MP MAGIC NUMBERS
-        stream2 = gen.chain(i[:8] for i in gen.chunks(non_zero_ints, 12))   ###MP what is chain/chunks combo doing?
+        stream1 = gen.chain(i[:8] for i in gen.chunks(non_zero_ints, 10))
+        stream2 = gen.chain(i[:8] for i in gen.chunks(non_zero_ints, 12))
         for i in stream1:
-            yield next(stream2)/(1.0*i)  ###MP is this correct / for both py2/3?
+            yield next(stream2)/(1.0*i)
 
     @staticmethod
     def lists():
         strategies = easy_street.strings(), easy_street.ints(), easy_street.floats(), easy_street.bools()
         strategies = list(gen.chain(product(strategies, repeat=len(strategies))))
-        lengths = cycle(list(range(0, 21)))   ###MP what does 21 come from?  MAGIC NUMBER
+        lengths = cycle(list(range(0, 21)))
 
-        ###MP The following stanza is just every vs every looper.
-        ### There's gotta be a better way to do it?  product?  starmap?
         for _ in gen.loop():
             for length in lengths:
                 for strat in strategies:
-                    yield [st for st in islice(strat, length)]   ###MP partial for islice?
+                    yield [st for st in islice(strat, length)]
 
     @staticmethod
     def tuples():
-        for i in easy_street.lists():  ###MP generator expression?
+        for i in easy_street.lists():
             yield tuple(i)
 
     @staticmethod
     def dicts():
         strategies = easy_street.strings(), easy_street.ints(), easy_street.floats(), easy_street.bools()
         strategies = list(gen.chain(product(strategies, repeat=len(strategies))))
-        lengths = cycle(list(range(0, 21))) ###MP same setup as in lists(), why not make it a class variable?
+        lengths = cycle(list(range(0, 21)))
 
         for _ in gen.loop():
             for length in lengths:
                 for strat in strategies:
-                    yield { k:v for k,v in gen.chunks(islice(strat, length*2), 2) }   ###MP MAGIC NUMBERS
+                    yield { k:v for k,v in gen.chunks(islice(strat,length*2), 2) }
 
     @staticmethod
     def sets():
@@ -209,35 +228,32 @@ class easy_street: ###MP easy_street(object) for py2 compatibility?  separate fi
             easy_street.lists(),
             easy_street.tuples()
         )
-        while 1:    ###MP why not cycle([0]*300) or while 2?
-            for strat in gen.chain(product(strategies, repeat=len(strategies))):  ###MP why not generator expr?
+        while 1:
+            for strat in gen.chain(product(strategies, repeat=len(strategies))):
                 yield next(strat)
-
-from multiprocessing import Process, Queue
-from time import sleep
 
 def background_strategy(strats, q):
     renice(20) # maximize niceness
-    if hasattr(os, 'cpu_count'):
-        cpu_count = os.cpu_count()
-        if cpu_count > 1:   ###MP redundant?  when is cpu_count <= 1?
-            pin_to_cpu(randint(1, cpu_count-1)) ###MP randint might be slow, for RR just cycle or % cpu_count
+    if not hardware.single_core:
+        pin_to_cpu(randint(1, hardware.cpu_count-1)) ###MP randint might be slow, for RR just cycle or % cpu_count
     q_put = q.put
     for strat in cycle(strats):
         q_put(strat.example())
 
-from graphdb import GraphDB
-
 def background_manager(child_queues, q):
-    db = GraphDB('/tmp/fuzz.db')    ###MP use NamedTemporaryFile
+    db = GraphDB(db_path('test_inputs.db'))
     for o in db.list_objects():
         q.put(o[-1])
+    db_store_item = db.store_item
+    q_put = q.put
     for cq in cycle(child_queues):
         if cq.full():
             ###MP pull out cq.get and db.store_item to save some attr resolutions? inside of a cycle loop so it might be a gain
             item = cq.get() ### LOAD
-            db.store_item(item) ### CACHE STORE
-            q.put(item) ### STORE
+            db_store_item(item) ### CACHE STORE
+            q_put(item) ### STORE
+        else:
+            sleep(0.0001)
 
 def multiprocess_garbage():
     basics = (
@@ -263,11 +279,9 @@ def multiprocess_garbage():
 
     strats = basics + lists + tuples + sets + dictionaries
 
-    cpu_count = os.cpu_count()  ###MP of all the things to make global/classvar, this would be a good candidate
+    # add logic here that plays on `if hardware.single_core:` to set up single core stuff cleanly
 
-    ###MP Do we care if it's real cores of HT cores? and which ones are which, so they don't 'share' a physical core?
-    cores_used_for_generation = cpu_count - 2 if cpu_count > 2 else 1
-
+    cores_used_for_generation = hardware.cpu_count - 2 if hardware.cpu_count > 2 else 1
 
     jobs = cycle([[] for _ in range(cores_used_for_generation)])
 
@@ -275,9 +289,6 @@ def multiprocess_garbage():
         next(jobs).append(s)
 
     jobs = [(next(jobs), Queue(1)) for _ in range(cores_used_for_generation)]
-
-
-    #jobs = [(s, Queue(1)) for s in strats]
 
     processes = [
         Process(target=background_strategy, args=j)
@@ -293,9 +304,12 @@ def multiprocess_garbage():
 
     try:
         fast_alternative = easy_street.garbage()
+        gather_queue_full = gather_queue.full
+        gather_queue_get = gather_queue.get
+        fast_alternative_next = getattr(fast_alternative, ('next' if hasattr(fast_alternative, 'next') else '__next__'))
         for _ in gen.loop():  # loop forever
-            if gather_queue.full(): # if the queue is full, yield the value
-                yield gather_queue.get()
+            if gather_queue_full(): # if the queue is full, yield the value
+                yield gather_queue_get()
             else:
                 for _ in range(10): # dont waste time looking for a full queue, be productive while you wait
                     yield next(fast_alternative)
