@@ -113,9 +113,11 @@ def shorten(string, max_length=80, trailing_chars=3):
 
 class easy_street: ###MP easy_street(object) for py2 compatibility?  separate file for this class?
     @staticmethod
+
     def chars():
         test_chars = ascii_letters + digits
-        for _ in cycle([0]*300):
+
+        for _ in gen.loop():
             for combination in product(test_chars, repeat=4):
                 for i in combination:
                     yield i
@@ -126,7 +128,7 @@ class easy_street: ###MP easy_street(object) for py2 compatibility?  separate fi
             [v.__doc__ for v in globals().values() if hasattr(v, '__doc__')].
             __repr__()))) + ['', 'exit("######## WARNING this code is executing strings blindly ########")']
 
-        for _ in cycle([0]*300):
+        for _ in gen.loop():
             for combination in product(test_strings, repeat=4):
                 for i in combination:
                     yield i
@@ -134,24 +136,24 @@ class easy_street: ###MP easy_street(object) for py2 compatibility?  separate fi
     @staticmethod
     def bools():
         booleans = (True, False)
-        for _ in cycle([0]*300):
-            for combination in product(booleans, repeat=4):
+        for _ in gen.loop():
+            for combination in product(booleans, repeat=4): ###MP why 4?  MAGIC NUMBERS
                 for i in combination:
                     yield i
 
     @staticmethod
     def ints():
-        numbers = tuple(range(-33,65))
-        for _ in cycle([0]*300):
-            for combination in product(numbers, repeat=3):
+        numbers = tuple(range(-33,65))  ###MP why -33,65?  I'm guessing easy street likely numbers
+        for _ in gen.loop():
+            for combination in product(numbers, repeat=3):  ### why 3? MAGIC NUMBERS
                 for i in combination:
                     yield i
 
     @staticmethod
     def floats():
         non_zero_ints = (i for i in easy_street.ints() if i != 0)
-        stream1 = gen.chain(i[:8] for i in gen.chunks(non_zero_ints, 10))
-        stream2 = gen.chain(i[:8] for i in gen.chunks(non_zero_ints, 12))
+        stream1 = gen.chain(i[:8] for i in gen.chunks(non_zero_ints, 10))   ###MP MAGIC NUMBERS
+        stream2 = gen.chain(i[:8] for i in gen.chunks(non_zero_ints, 12))   ###MP what is chain/chunks combo doing?
         for i in stream1:
             yield next(stream2)/(1.0*i)  ###MP is this correct / for both py2/3?
 
@@ -160,12 +162,10 @@ class easy_street: ###MP easy_street(object) for py2 compatibility?  separate fi
         strategies = easy_street.strings(), easy_street.ints(), easy_street.floats(), easy_street.bools()
         strategies = list(gen.chain(product(strategies, repeat=len(strategies))))
         lengths = cycle(list(range(0, 21)))   ###MP what does 21 come from?  MAGIC NUMBER
-        fastseq = cycle([0]*300)    ### fastest sequence for looping
-
 
         ###MP The following stanza is just every vs every looper.
         ### There's gotta be a better way to do it?  product?  starmap?
-        for _ in fastseq:
+        for _ in gen.loop():
             for length in lengths:
                 for strat in strategies:
                     yield [st for st in islice(strat, length)]   ###MP partial for islice?
@@ -180,9 +180,8 @@ class easy_street: ###MP easy_street(object) for py2 compatibility?  separate fi
         strategies = easy_street.strings(), easy_street.ints(), easy_street.floats(), easy_street.bools()
         strategies = list(gen.chain(product(strategies, repeat=len(strategies))))
         lengths = cycle(list(range(0, 21))) ###MP same setup as in lists(), why not make it a class variable?
-        fastseq = cycle([0]*300)
 
-        for _ in fastseq:
+        for _ in gen.loop():
             for length in lengths:
                 for strat in strategies:
                     yield { k:v for k,v in gen.chunks(islice(strat, length*2), 2) }   ###MP MAGIC NUMBERS
@@ -192,9 +191,8 @@ class easy_street: ###MP easy_street(object) for py2 compatibility?  separate fi
         strategies = easy_street.strings(), easy_street.ints(), easy_street.floats(), easy_street.bools()
         strategies = list(gen.chain(product(strategies, repeat=len(strategies))))
         lengths = cycle(list(range(0, 21)))
-        fastseq = cycle([0]*300)
 
-        for _ in fastseq:
+        for _ in gen.loop():
             for length in lengths:
                 for strat in strategies:
                     yield {i for i in islice(strat, length)}
@@ -223,7 +221,7 @@ def background_strategy(strats, q):
     if hasattr(os, 'cpu_count'):
         cpu_count = os.cpu_count()
         if cpu_count > 1:   ###MP redundant?  when is cpu_count <= 1?
-            pin_to_cpu(randint(1, cpu_count-1))
+            pin_to_cpu(randint(1, cpu_count-1)) ###MP randint might be slow, for RR just cycle or % cpu_count
     q_put = q.put
     for strat in cycle(strats):
         q_put(strat.example())
@@ -265,13 +263,10 @@ def multiprocess_garbage():
 
     strats = basics + lists + tuples + sets + dictionaries
 
-    cpu_count = os.cpu_count()
+    cpu_count = os.cpu_count()  ###MP of all the things to make global/classvar, this would be a good candidate
 
-    if cpu_count > 2:   ### Do we care if it's real cores of HT cores? and which ones are which, so they don't 'share' a physical core?
-        cores_used_for_generation = cpu_count - 2
-    else:
-        cores_used_for_generation = 1
-
+    ###MP Do we care if it's real cores of HT cores? and which ones are which, so they don't 'share' a physical core?
+    cores_used_for_generation = cpu_count - 2 if cpu_count > 2 else 1
 
 
     jobs = cycle([[] for _ in range(cores_used_for_generation)])
@@ -305,7 +300,7 @@ def multiprocess_garbage():
                 for _ in range(10): # dont waste time looking for a full queue, be productive while you wait
                     yield next(fast_alternative)
     except (KeyboardInterrupt, SystemExit, GeneratorExit, StopIteration):
-        gather_process.terminate()
+        gather_process.terminate() ###MP  isn't this redundant with same sequence in finally?
         gather_process.join()
         for p in processes:
             p.terminate()
@@ -318,18 +313,16 @@ def multiprocess_garbage():
             p.join()
 
 
-class MaxExecutionTime(Exception):
+class MaxExecutionTimeError(Exception):
     pass
 
 class max_execution_time:
     def signal_handler(self, signum, frame):
         raise self.ex_type('operation timed out')
 
-    def __init__(self, seconds, ex_type=MaxExecutionTime):
+    def __init__(self, seconds, ex_type=MaxExecutionTimeError):
         #print('setting timeout for {} seconds'.format(seconds))
-        if seconds < 1:
-            seconds = 1
-        self.seconds = seconds
+        self.seconds = 1 if seconds < 1 else seconds
         self.ex_type = ex_type
 
     def __enter__(self):
@@ -337,12 +330,12 @@ class max_execution_time:
         signal.alarm(self.seconds)
 
     def __exit__(self, *a):
-        signal.alarm(0)
+        signal.alarm(0) ###MP which signal is it? MAGIC NUMBERS, this is why signals have const'ed names
 
 
-def hashable_strategy(s):
-    """ returns true if the input is a hash-able hypothesis strategy """
-    assert hasattr(s, 'example'), 'hashable_strategy needs a strategy argument'
+def hashable_strategy(s):   ###MP predicates are nice to indicate with <is_condition> or ? if you're weird enough
+    """ Predicate stating a hash-able hypothesis strategy """
+    assert hasattr(s, 'example'), 'hashable_strategy needs a strategy argument'   ###MP strategies are marked up with attributes not types/base class?
     try:
         for i in range(10):
             sample = s.example()
@@ -358,9 +351,7 @@ def replace_strategy_repr(strat, new_repr):
     class custom_repr_strategy(type(strat)):
         __repr__ = new_repr
         __str__ = new_repr
-    return custom_repr_strategy(
-        strategies=strat.original_strategies
-    )
+    return custom_repr_strategy(strategies=strat.original_strategies)
 
 def build_garbage_strategy():
     ''' builds battle_tested's primary strategy '''
@@ -428,7 +419,7 @@ class storage():
             except:
                 pass
         try:
-            garbage_filler()
+            garbage_filler()    ###MP block to read from a queue instead of try/except pass?
         except:
             pass
 
@@ -440,8 +431,8 @@ class storage():
 
 try:
     storage.test_inputs.append('waffles') # easter egg :)
-    for i in islice(easy_street.garbage(), 32):
-        storage.test_inputs.append(i)
+    for i in islice(easy_street.garbage(), 32): ### Why append fixed number of entries dynamically?
+        storage.test_inputs.append(i)           ### preallocate, do a copy in one move?
 except Exception as e:
     pass
 
@@ -455,13 +446,13 @@ class io_example(object):
     def __repr__(self):
         return '{} -> {}'.format(self.input,self.output)
     def __str__(self):
-        return '{} -> {}'.format(self.input,self.output)
+        return '{} -> {}'.format(self.input,self.output)  ### why not pull value of __repr__? .format cant be cheap, it's parsing and interpolation
     def __hash__(self):
         return hash('io_example') + hash(self.__repr__())
     def __eq__(self, target):
         return hasattr(target, '__hash__') and self.__hash__() == target.__hash__()
 
-class suppress():
+class suppress():   ###MP dead code?  i dont see it referenced anywhere?
     """ suppress exceptions coming from certain code blocks """
     def __init__(self, *exceptions):
         self._exceptions = exceptions
@@ -518,7 +509,7 @@ class PrettyTuple(tuple):
 
 class tb_controls():
     old_excepthook = sys.excepthook
-    no_tracebacklimit_on_sys='tracebacklimit' not in dir(sys)
+    no_tracebacklimit_on_sys = 'tracebacklimit' not in dir(sys)
     old_tracebacklimit = (sys.tracebacklimit if 'tracebacklimit' in dir(sys) else None)
     traceback_disabled = False
 
@@ -556,17 +547,17 @@ def traceback_file_lines(trace_text=None):
             traceback_steps(traceback.format_exc())
     """
     # split the text into traceback steps
-    return [i for i in trace_text.splitlines() if i.startswith('  File "') and '", line' in i]
+    return [i for i in trace_text.splitlines() if i.startswith('  File "') and '", line' in i] ###MP extract out the condition for readability?
 
 def traceback_steps(trace_text=None):
     """ this generates the steps in a traceback
         usage:
             traceback_steps(traceback.format_exc())
     """
-    if trace_text == None:
+    if trace_text == None:   ### is None?
         trace_text = traceback.format_exc()
     # get rid of the first line with traceback
-    trace_text = ('\n'.join(trace_text.splitlines()[1:-1]))
+    trace_text = ('\n'.join(trace_text.splitlines()[1:-1]))  ### split text to rejoin without first and last?  why not just slice the middle out?
     # split the text into traceback steps
     file_lines = [i for i in trace_text.splitlines() if '", line' in i and i.startswith('  File "') ]
     # build the output
@@ -574,7 +565,7 @@ def traceback_steps(trace_text=None):
     for i in trace_text.splitlines():
         if i in file_lines:
             if len(out):
-                yield '\n'.join(out)
+                yield '\n'.join(out)   ###MP why split then rejoin later again?
             out = [i]
         else:
             out.append(i)
@@ -607,7 +598,7 @@ Breakpoint: {break_path:} - line {break_line_number:}""".format(
         err_msg=err_msg,
         break_path=break_path,
         break_line_number=break_line_number
-    )
+    )   ###MP put the fields in a dict, let format unpack it into the right fields
 
     try:
         with open(break_path) as f:
@@ -668,8 +659,8 @@ class generators(object):
 
     @staticmethod
     @started
-    def counter():
-        "generator that holds a sum"
+    def counter():  ###MP why does a counter need to be a generator?
+        """generator that holds a sum"""
         c = 0
         while 1:
             i = yield c
@@ -704,7 +695,7 @@ class generators(object):
             yield time()-start < seconds
 
     @staticmethod
-    def chunks(itr, size):
+    def chunks(itr, size):      ###MP isn't this a copy of stuff from generators?
         """ yields a windowed chunk of a given size """
         out = deque(maxlen=size)
         for i in itr:
@@ -714,7 +705,7 @@ class generators(object):
                 out.clear()
 
     @staticmethod
-    def chain(*a):
+    def chain(*a):      ###MP isn't this a copy of stuff from generators?
         """itertools.chain, just better"""
         for g in a:
             if hasattr(g, '__iter__'):
@@ -745,12 +736,12 @@ class generators(object):
         yield iterable
 
 
-class FuzzTimeout(BaseException):
+class FuzzTimeoutError(BaseException):
     pass
 
 from threading import Timer
 
-class IntervalTimer(object):
+class IntervalTimer(object):    ###MP some classes are explicitly inheriting from object, others are not. Inconsistent
     """ run functions on intervals in the background
         by: Cody Kochmann
     """
@@ -778,9 +769,11 @@ class IntervalTimer(object):
     def stop(self):
         self.stopped = True
         self.running = False
+
         try:
             self.thread.cancel()
         except AttributeError: pass
+
         try:
             self.restart_thread.cancel()
         except AttributeError: pass
@@ -790,7 +783,7 @@ def run_silently(fn):
     """ runs a function silently with no stdout """
     stdout_holder = sys.stdout
     sys.stdout = StringIO()
-    fn()
+    _ = fn()    ### explicit is better than implicit
     sys.stdout = stdout_holder
 
 class ipython_tools(object):
@@ -804,13 +797,14 @@ class ipython_tools(object):
 
     @staticmethod
     def silence_traceback():
-        'silences ipythons verbose debugging temporarily'
+        """ silences ipythons verbose debugging temporarily """
         if ipython_tools.detected:
             # this hijacks stdout because there is a print in ipython.magic
             run_silently(lambda:ipython_tools.magic("xmode Plain"))
+
     @staticmethod
     def verbose_traceback():
-        're-enables ipythons verbose tracebacks'
+        """ re-enables ipythons verbose tracebacks """
         if ipython_tools.detected:
             ipython_tools.magic("xmode Verbose")
 
@@ -835,7 +829,7 @@ def function_arg_count(fn):
                 if not our_specific_type_error: # if you find something
                     number_of_args_that_work.append(i)
                 pass
-            except Exception as ex:
+            except Exception:
                 #number_of_args_that_work.append(i)
                 pass
             else:
@@ -1295,7 +1289,7 @@ Parameters:
             #    exit('got {} args? {}'.format(len(arg_list),next(test_variables)))
             # unpack the arguments
             if not fuzz.has_time:
-                raise FuzzTimeout()
+                raise FuzzTimeoutError()
             display_stats.count += 1
             try:
                 with max_execution_time(int(display_stats.remaining)):
@@ -1330,7 +1324,7 @@ Parameters:
                     '''
                 except:
                     pass
-            except MaxExecutionTime:
+            except MaxExecutionTimeError:
                 pass
             except fuzz.allow as ex:
                 pass
@@ -1398,7 +1392,7 @@ Parameters:
                 max_tests -= 1
                 if max_tests <= 0:
                     break
-        except FuzzTimeout:
+        except FuzzTimeoutError:
             pass
         except KeyboardInterrupt:
             if not quiet:
