@@ -74,8 +74,8 @@ def db_path(db_name='battle_tested.db'):
     this_files_path = dirname(__file__)
     # path of where dbs are stored
     db_dir = join(this_files_path, 'db')
-    # makr the db_dir if it doesnt exist
-    if not isdir(db_dir):
+    # make the db_dir if it doesnt exist
+    if not isdir(db_dir):   ###MP what if it exists and it's a link or block device?
         from os import mkdir, chmod
         from stat import S_IRUSR, S_IWUSR, S_IXUSR
         # make the directory
@@ -351,11 +351,11 @@ def hashable_strategy(s):   ###MP predicates are nice to indicate with <is_condi
     """ Predicate stating a hash-able hypothesis strategy """
     assert hasattr(s, 'example'), 'hashable_strategy needs a strategy argument'   ###MP strategies are marked up with attributes not types/base class?
     try:
-        for i in range(10):
+        for _ in range(10):   ###MP Why trying multiple times?  resolving attributes is determinstic
             sample = s.example()
-            hash(sample)
-            assert type(sample) != dict
-    except:
+            _ = hash(sample)
+            assert type(sample) != dict ###MP what is assert doing in a middle of a try/except? why dict explicitely?
+    except: ###MP would it be cleaner to `except AttributeError`?  or comprehension with hasattr(s,'example') filter?
         return False
     else:
         return True
@@ -384,6 +384,7 @@ def build_garbage_strategy():
     )
 
     hashables = tuple(s for s in basics if hashable_strategy(s))
+    ###MP this entire begining seems to closely resemble beginning of multiprocess_garbage().  On purpose or not?
 
     # returns a strategy with only basic values
     any_basics = partial(st.one_of, *basics)
@@ -417,6 +418,7 @@ garbage = replace_strategy_repr(build_garbage_strategy(), lambda s:'<garbage>')
 
 class storage():
     """ where battle_tested stores things """
+    ###MP this needs to be carved out to separate file
     test_inputs = deque()
     results = {}
 
@@ -959,6 +961,7 @@ Parameters:
     def __verify_function__(fn):
         """ asserts that the input is a function """
         assert callable(fn), 'battle_tested needs a callable function, not {0}'.format(repr(fn))
+        ###MP there are callable objects, this function would say they're callables, but they're not functions. Better name?
 
     @staticmethod
     def __verify_tested__(fn):
@@ -976,7 +979,9 @@ Parameters:
     def __verify_quiet__(quiet):
         """ ensures quiet is a valid argument """
         assert type(quiet) == bool, 'quiet needs to be a bool'
-        assert quiet == True or quiet == False, 'invalid value for quiet'
+        assert quiet == True or quiet == False, 'invalid value for quiet' ###MP This is likely a tautology.
+        ###MP If it's a bool, it's gonna be one of these, thus always return True.
+        ###MP Is there a falsifiable code for this case?
 
     @staticmethod
     def __verify_allow__(allow):
@@ -1101,11 +1106,13 @@ Parameters:
     def generate_examples(args_needed=1, strategy=None):
         """ this is the primary argument generator that battle_tested runs on """
         battle_tested.__verify_args_needed__(args_needed)
-        if strategy is not None: # logic for a custom strategy
+        if strategy is not None:  # logic for a custom strategy
             battle_tested.__verify_strategy__(strategy)
             if type(strategy) == tuple:
-                assert len(strategy) == args_needed, 'invalid number of strategies, needed {} got {}'.format(args_needed, len(strategy))
-                print('using {} custom strategies - {}'.format(len(strategy),strategy))
+                assert len(strategy) == args_needed, 'invalid number of strategies, needed {} got {}'.format(
+                    args_needed, len(strategy)
+                )
+                print('using {} custom strategies - {}'.format(len(strategy), strategy))
                 strategy = st.builds(lambda *x: list(x), *strategy)
                 ex = strategy.example
                 for _ in gen.loop():
@@ -1117,9 +1124,13 @@ Parameters:
                     out = [ex() for i in range(args_needed)]
                     for i in product(out, repeat=len(out)):
                         yield i
-        else: # logic for fuzzing approach
+        else:  # logic for fuzzing approach
             # first run through the cache
-            for chunk in generators.chunks(chain(storage.test_inputs, reversed(storage.test_inputs)),size=args_needed):
+            ###MP These are the major drivers of different functionality.
+            ###MP cut it out into a named generator or function? use the name as documentation, i.e.: general_garbage, custom_strategies.  
+            ###MP Or better yet, make it into a proper state machine, make each scenario a state, transition on inputs.
+            stored_inputs = chain(storage.test_inputs, reversed(storage.test_inputs))
+            for chunk in generators.chunks(stored_inputs, size=args_needed):
                 for combination in product(chunk, repeat=args_needed):
                     yield combination
             try:
@@ -1188,6 +1199,7 @@ Parameters:
 
         # code for instance methods
         if hasattr(fn, '__self__'):
+
             # create a partial with fn.__self__ as the first arg
             #fn = partial(fn, fn.__self__)
             _name = repr(fn)
@@ -1216,48 +1228,54 @@ Parameters:
         battle_tested.crash_map.clear()
         battle_tested.success_map.clear()
 
-        count = generators.counter()
-        average = generators.avg()
-        timer = generators.timer()
+        count = generators.counter()    ###MP count, average and timer are way too generic, not sure if builtins.
+        average = generators.avg()      ###MP or overwriting builtins for clever reasons.  Clarify it with better names
+        timer = generators.timer()      ###MP or leave it with generators.blah() for readibility/lack of confusion
 
 
         def calculate_window_speed():
-            w = calculate_window_speed.window
+            w = calculate_window_speed.window   ###MP attribute of functions inside of that very function?  WAT?
             w.append(_inner_window_speed())
             return int((1.0*sum(w))/len(w))
-        calculate_window_speed.window = deque(maxlen=4)
+        calculate_window_speed.window = deque(maxlen=4)   ###MP is this in or out of the function?  
+                ###MP if it's out, why weirdly formatted and hiding in between functions? 
+                ###MP if it's a utility function, carve it out to a utility module
 
-        def _inner_window_speed():
+        def _inner_window_speed():  ###MP what is this for?
             cw = display_stats.count_window
             tw = display_stats.time_window
             if len(cw) == 2:
-                c = cw[1]-cw[0]
-                t = tw[1]-tw[0]
+                c = cw[1] - cw[0]
+                t = tw[1] - tw[0]
                 if c != 0 and t != 0:
-                    out = int(c*(1/t))
+                    out = int(c * (1 / t))
                     return out if out > 0 else 1
-            return 1
+            return 1  ###MP this fallthrough return looks like a default value, a duplicate of the return...else right above?
 
         def display_stats(overwrite_line=True):
 
             now = next(display_stats.timer)
-            display_stats.remaining = display_stats.test_time-now
+            display_stats.remaining = display_stats.test_time - now
             if not display_stats.quiet:
                 display_stats.count_window.append(display_stats.count)
                 display_stats.time_window.append(now)
-                print('tests: {:<8}  speed: {:>6}/sec  avg:{:>6}/sec {} {}s    '.format(
-                    display_stats.count,
-                    calculate_window_speed(),
-                    int(display_stats.count/(now if now > 0 else 0.001)),
-                    '-' if overwrite_line else 'in',
-                    int(display_stats.test_time-now)+1 if overwrite_line else display_stats.test_time
-                ), end=('\r' if overwrite_line else '\n'))
+                ###MP cram the entire content of the format() into a dict and let it unpack with proper names
+                ###MP like this:  http://www.diveintopython.net/html_processing/dictionary_based_string_formatting.html
+                print(
+                    'tests: {:<8}  speed: {:>6}/sec  avg:{:>6}/sec {} {}s    '.format(
+                        display_stats.count,
+                        calculate_window_speed(),
+                        int(display_stats.count / (now if now > 0 else 0.001)), '-' if overwrite_line else 'in',
+                        int(display_stats.test_time - now) + 1 if overwrite_line else display_stats.test_time
+                    ),
+                    end=('\r' if overwrite_line else '\n')
+                )
                 sys.stdout.flush()
 
         display_stats.test_time = seconds
         display_stats.remaining = display_stats.test_time
         display_stats.count = 0
-        display_stats.time_window = deque(maxlen=2)
+        display_stats.time_window = deque(maxlen=2) ###MP I'm not seeing this being faster than 2 variables or list or tuple... Overcomplicated for what it does?
         display_stats.count_window = deque(maxlen=2)
         display_stats.timer = generators.timer()
         display_stats.average = generators.avg()
@@ -1268,13 +1286,13 @@ Parameters:
         ipython_tools.silence_traceback()
 
         storage.results[fn] = {
-            'successful_input_types':deque(maxlen=500),
-            'crash_input_types':set(),
-            'iffy_input_types':set(), # types that both succeed and crash the function
-            'output_types':set(),
-            'exception_types':set(),
-            'unique_crashes':dict(),
-            'successful_io':deque()
+            'successful_input_types':deque(maxlen=500), ###MP MAGIC NUMBER.  why 500 if sucessful_io is 512?  needs to be self adjusting, or easily changable from fuzz()
+            'crash_input_types':set(),  # types that ONLY crash the function
+            'iffy_input_types':set(),  # types that both succeed and crash the function
+            'output_types':set(),  # types returned by the function
+            'exception_types':set(),  # exceptions raised by the function
+            'unique_crashes':dict(),  # further details on each crash
+            'successful_io':deque()  # inputs->output mapping for functions that got to the end ###MP is this duplication of fn_info.successful_io?  why not limited to 512? why variable not fixed?
         }
 
         def fn_info():
@@ -1282,7 +1300,10 @@ Parameters:
         fn_info.fuzz_time = time()
         fn_info.fuzz_id = len(storage.results.keys())
         # stores examples that succeed and return something other than None
-        fn_info.successful_io = deque(maxlen=512)
+        fn_info.successful_io = deque(maxlen=512)   ###MP with EZ being so fast, these fill up quickly.
+            ###MP needs to self-scale or be easily adjustable from fuzz()
+            ###MP if it is artificially limited, state so in summary/results, so no confusion why no matter how long you run it, you always end up with the same (arbitrary) number of successful_io.
+            ###MP it behaves different than all the other summary counters, but without explanation on why or how.
         # stores examples that return None
         fn_info.none_successful_io = deque(maxlen=512)
 
@@ -1290,7 +1311,8 @@ Parameters:
 
         #@settings(perform_health_check=False, database_file=None, deadline=None, max_examples=max_tests, verbosity=(Verbosity.verbose if verbose else Verbosity.normal))
         #@given(strategy)
-        def fuzz(given_args):
+        def fuzz(given_args):   ###MP this is the meat of the operation, long complicated function, and not a comment or docstring?
+                                ###MP Also, there is another function called fuzz. accident or on purpose?
             if fuzz.first_run:
                 fuzz.first_run = False
                 # start the display interval
@@ -1368,7 +1390,7 @@ Parameters:
                     tb_steps_full = [i for i in traceback_steps()]
                     tb_steps_with_func_name = [i for i in tb_steps_full if i.splitlines()[0].endswith(fn.__name__)]
 
-                    if len(tb_steps_with_func_name)>0:
+                    if len(tb_steps_with_func_name) > 0:
                         tb = tb_steps_with_func_name[-1]
                     else:
                         tb = tb_steps_full[-1]
@@ -1489,7 +1511,7 @@ Parameters:
 
 
     def __call__(self, fn):
-        """ runs before the decorated function is called """
+        """ runs before the decorated function is called """   ### yes, but what does it do?
         self.__verify_function__(fn)
 
         if fn not in storage.results:
@@ -1499,7 +1521,10 @@ Parameters:
                 self.fuzz(fn, seconds=self.seconds, max_tests=self.max_tests, keep_testing=self.keep_testing, verbose=self.verbose, quiet=self.quiet, allow=self.allow, strategy=self.strategy)
             #self.tested = True
 
-        if any(i in self.kwargs for i in ('logger','default_output')):
+        s = {'logger','default_output'}  ###MP set has better avg case than tuple or list for 2 elements. 
+        ### list is faster if the first element is the match. if the frequency of the matches is lobsided, stuff the frequent one
+        ### in the first element of a list, might be a win
+        if any(i in self.kwargs for i in s):
             # only wrap if needed
             def wrapper(*args, **kwargs):
                 try:
@@ -1530,6 +1555,7 @@ print_stats = battle_tested.print_stats
 def crash_map():
     '''returns a map of crashes generated by the previous test'''
     return tuple(sorted(battle_tested.crash_map.values(), key=lambda i:i['type'].__name__))
+    ###MP is key=lambda... faster then itemgetter/attrgetter?  same for success_map
 
 def success_map():
     '''returns a map of data types that were able to get through the function without crashing'''
@@ -1543,6 +1569,7 @@ def function_versions(fn):
 
 def time_io(fn,args,rounds=1000):
     ''' time how long it takes for a function to run through given args '''
+    ###MP isnt this just the timeit decorator?
     tests = range(rounds)
     args = tuple(args) # solidify this so we can run it multiple times
     start = time()
@@ -1596,7 +1623,7 @@ def run_tests():
     print(fuzz(l.append))
 
     # test fuzzing all the types
-    for i in (str, bool, bytearray, bytes, complex, dict, float, frozenset, int, list, object, set, str, tuple):
+    for i in (str, bool, bytearray, bytes, complex, dict, float, frozenset, int, list, object, set, str, tuple):  ###MP frozenset is the same thing as set since like 2.3, maybe not necessary
         print('testing: {}'.format(i))
         print(fuzz(i))
 
@@ -1785,3 +1812,63 @@ def run_tests():
 
 if __name__ == '__main__':
     run_tests()
+
+"""
+MP ideas:
+ 1. how to instrument objects to find out which member/attrib gets accessed how frequently?
+   * And how to keep track whether the access was create/read/write/mod/delete?
+ 2. Even if strategy is restricted to numerics, but the function uses float() to normalize inputs, 
+    we should try to feed it things that are not numerics, but convertable to numerics,
+    i.e.: 'inf', 'Nan', and '1' (string of a numeric). That would catch more edge cases.
+ 3. For 'armoring' phase, it'd be nice to indicate which type of crash we're looking for,
+    or some other arbitrary condition to be met. It could also make the process faster,
+    cuz we could halt early on that, instead of going for the full duration. Something to make sure
+    that what I just thought I fixed is truly fixed. Going through the full process every time is
+    a bit much.
+ 4. How do we mark/identify/track of 'silver bullets', the values that keep getting through, despite protections? 
+ 5. Sometimes feeding (somewhat) sane inputs results in (probably) undesirable outputs:
+    (-1.086714676653645e+213, -1.086714676653645e+213, 1.1) -> inf   
+    It's still a float, so we wont notice it by looking at successful_input_types, but probably not something most would expect.
+    Not sure why it's not raising OverflowError
+ 6. In [64]: numerics = st.floats(allow_nan=False, allow_infinity=False)
+
+    In [65]: r = fuzz(fuzzme, strategy=numerics, seconds=7)
+    testing: fuzzme()
+    tests: 75728     speed:  11117/sec  avg: 10804/sec in 7s    
+    fuzzing fuzzme() found:                                                        
+    +------------------------+---------+
+    |   crash_input_types    |    1    |
+    |    exception_types     |    1    |
+    |    iffy_input_types    |    1    |
+    |      output_types      |    1    |
+    | successful_input_types |    0    |
+    |     successful_io      |   512   |
+    |     unique_crashes     |    1    |
+    +------------------------+---------+
+
+    In [66]: r.successful_input_types
+    Out[66]: ()
+    
+    but:
+    In [68]: r = fuzz(fuzzme, strategy=st.integers(), seconds=7)
+    testing: fuzzme()
+    tests: 96336     speed:  12319/sec  avg: 13745/sec in 7s    
+    fuzzing fuzzme() found:                                                        
+    +------------------------+---------+
+    |   crash_input_types    |    0    |
+    |    exception_types     |    0    |
+    |    iffy_input_types    |    0    |
+    |      output_types      |    1    |
+    | successful_input_types |    1    |
+    |     successful_io      |   512   |
+    |     unique_crashes     |    0    |
+    +------------------------+---------+
+
+    In [69]: r.successful_input_types
+    Out[69]: 
+    +---------+---------+---------+
+    |   int   |   int   |   int   |
+    +---------+---------+---------+
+
+    BUG:After passing in custom strategy, successful_input_types does not count SOME types of intputs correctly.
+"""
