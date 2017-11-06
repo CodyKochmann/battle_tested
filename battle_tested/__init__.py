@@ -30,42 +30,42 @@ Or:
 """
 
 from __future__ import print_function, unicode_literals
-from collections import deque
-from functools import wraps, partial
-from gc import collect as gc
-from generators.inline_tools import attempt
-from graphdb import GraphDB
-from hypothesis import given, strategies as st, settings, Verbosity, unlimited
-from hypothesis.errors import HypothesisException
-from itertools import product, cycle, chain, islice
-from multiprocessing import Process, Queue, cpu_count as multi_cpu_count
-from prettytable import PrettyTable
-from random import choice, randint
-from re import findall
-from stricttuple import stricttuple
-from string import ascii_letters, digits
-from time import sleep
-from time import time
-import generators as gen
+
 import logging
 import os
 import signal
 import sys
 import traceback
+from collections import deque
+from functools import partial
+from itertools import product, cycle, chain, islice
+from multiprocessing import Process, Queue, cpu_count as multi_cpu_count
+from random import randint
+from re import findall
+from string import ascii_letters, digits
+from time import sleep, time
 
-
+import generators as gen
+from gc import collect as gc
+from generators.inline_tools import attempt
+from graphdb import GraphDB
+from hypothesis import given, strategies as st, settings
+from prettytable import PrettyTable
+from stricttuple import stricttuple
 
 __all__ = 'battle_tested', 'fuzz', 'disable_traceback', 'enable_traceback', 'garbage', 'crash_map', 'success_map', 'results', 'stats', 'print_stats', 'function_versions', 'time_all_versions_of', 'easy_street', 'run_tests', 'multiprocess_garbage'
 
 
 # try to set the encoding
-attempt(lambda: (reload(sys), sys.setdefaultencoding('utf8')))
+attempt(lambda: (reload(sys), sys.setdefaultencoding('utf8')))  ###MP reload is part of importlib from py3.4, probably need to import it with some python versioning checks
 
-class hardware:
+
+class hardware(object):
     ''' single reference of what hardware the system is working with '''
     # get the count of cpu cores, if it fails, assume 1 for safety
     cpu_count = attempt(multi_cpu_count, default_output=1)
     single_core = cpu_count == 1
+
 
 def db_path(db_name='battle_tested.db'):
     ''' returns the full path of battle_tested's database '''
@@ -86,6 +86,7 @@ def db_path(db_name='battle_tested.db'):
     # return the full path of the db
     return join(db_dir, db_name)
 
+
 def getsource(fn):
     ''' basically just inspect.getsource, only this one doesn't crash as much '''
     from inspect import getsource
@@ -94,11 +95,13 @@ def getsource(fn):
     except:
         return attempt(lambda: '{}'.format(fn), default_output='')
 
+
 def pin_to_cpu(core_number):
     ''' pin the current process to a specific cpu to avoid dumping L1 cache'''
     assert type(core_number) == int, 'pin_to_cpu needs an int as the argument'
     # just attempt this, it wont work on EVERY system in existence
     attempt(lambda: os.sched_setaffinity(os.getpid(), (core_number,)))
+
 
 def renice(new_niceness):
     ''' renice the current process calling this function to the new input '''
@@ -106,8 +109,10 @@ def renice(new_niceness):
     # just attempt this, it wont work on EVERY system in existence
     attempt(lambda: os.nice(new_niceness))
 
+
 pin_to_cpu(0)  # pin this main process to the first core
 renice(15)  # renice this main process, idk why 15, but it gives room for priorities above and below
+
 
 def shorten(string, max_length=80, trailing_chars=3):
     ''' trims the 'string' argument down to 'max_length' to make previews to long string values '''
@@ -117,16 +122,16 @@ def shorten(string, max_length=80, trailing_chars=3):
     assert max_length > 0, 'shorten needs max_length to be positive, not {}'.format(max_length)
     assert trailing_chars >= 0, 'shorten needs trailing_chars to be greater than or equal to 0, not {}'.format(trailing_chars)
 
-    return (
-        string
-    ) if len(string) <= max_length else (
+    retval = (string) if len(string) <= max_length else (
         '{before:}...{after:}'.format(
             before=string[:max_length-(trailing_chars+3)],
-            after=string[-trailing_chars:] if trailing_chars>0 else ''
+            after=string[-trailing_chars:] if trailing_chars > 0 else ''
         )
     )
+    return retval
 
-class easy_street:
+
+class easy_street(object):
     ''' This is a namespace for high speed test generation of various types '''
 
     @staticmethod
@@ -134,8 +139,8 @@ class easy_street:
         test_chars = ascii_letters + digits
         for _ in gen.loop():
             for combination in product(test_chars, repeat=4):
-                for i in combination:
-                    yield i
+                for combo in combination:
+                    yield combo
 
     @staticmethod
     def strings():
@@ -145,30 +150,30 @@ class easy_street:
         ]
         # this snippet rips out every word from doc strings
         test_strings += list(set(findall(
-            r'[a-zA-Z\_]{1,}',
+            r'[a-zA-Z_-]+',
             [v.__doc__ for v in globals().values() if hasattr(v, '__doc__')].__repr__()
-        )))
+        )))  ###MP The raw string, did you mean including backslash or is that escape for underscore?
 
         for _ in gen.loop():
             for combination in product(test_strings, repeat=4):
-                for i in combination:
-                    yield i
+                for combo in combination:
+                    yield combo
 
     @staticmethod
     def bools():
         booleans = (True, False)
         for _ in gen.loop():
             for combination in product(booleans, repeat=4):
-                for i in combination:
-                    yield i
+                for combo in combination:
+                    yield combo
 
     @staticmethod
     def ints():
-        numbers = tuple(range(-33,65))
+        numbers = tuple(range(-33, 65))
         for _ in gen.loop():
             for combination in product(numbers, repeat=3):
-                for i in combination:
-                    yield i
+                for combo in combination:
+                    yield combo
 
     @staticmethod
     def floats():
@@ -203,7 +208,7 @@ class easy_street:
         for _ in gen.loop():
             for length in lengths:
                 for strat in strategies:
-                    yield { k:v for k,v in gen.chunks(islice(strat,length*2), 2) }
+                    yield { k: v for k, v in gen.chunks(islice(strat, length*2), 2) }
 
     @staticmethod
     def sets():
@@ -232,13 +237,15 @@ class easy_street:
             for strat in gen.chain(product(strategies, repeat=len(strategies))):
                 yield next(strat)
 
+
 def background_strategy(strats, q):
-    renice(20) # maximize niceness
+    renice(20)  # maximize niceness
     if not hardware.single_core:
-        pin_to_cpu(randint(1, hardware.cpu_count-1)) ###MP randint might be slow, for RR just cycle or % cpu_count
+        pin_to_cpu(randint(1, hardware.cpu_count-1))  ###MP randint might be slow, for RR just cycle or % cpu_count
     q_put = q.put
     for strat in cycle(strats):
         q_put(strat.example())
+
 
 def background_manager(child_queues, q):
     db = GraphDB(db_path('test_inputs.db'))
@@ -249,11 +256,12 @@ def background_manager(child_queues, q):
     for cq in cycle(child_queues):
         if cq.full():
             ###MP pull out cq.get and db.store_item to save some attr resolutions? inside of a cycle loop so it might be a gain
-            item = cq.get() ### LOAD
-            db_store_item(item) ### CACHE STORE
-            q_put(item) ### STORE
+            item = cq.get()  ### LOAD
+            db_store_item(item)  ### CACHE STORE
+            q_put(item)  ### STORE
         else:
             sleep(0.0001)
+
 
 def multiprocess_garbage():
     basics = (
@@ -306,15 +314,15 @@ def multiprocess_garbage():
         fast_alternative = easy_street.garbage()
         gather_queue_full = gather_queue.full
         gather_queue_get = gather_queue.get
-        fast_alternative_next = getattr(fast_alternative, ('next' if hasattr(fast_alternative, 'next') else '__next__'))
+        fast_alternative_next = getattr(fast_alternative, ('next' if hasattr(fast_alternative, 'next') else '__next__'))  ###MP not used anywhere?
         for _ in gen.loop():  # loop forever
-            if gather_queue_full(): # if the queue is full, yield the value
+            if gather_queue_full():  # if the queue is full, yield the value
                 yield gather_queue_get()
             else:
-                for _ in range(10): # dont waste time looking for a full queue, be productive while you wait
+                for _ in range(10):  # don't waste time looking for a full queue, be productive while you wait
                     yield next(fast_alternative)
     except (KeyboardInterrupt, SystemExit, GeneratorExit, StopIteration):
-        gather_process.terminate() ###MP  isn't this redundant with same sequence in finally?
+        gather_process.terminate()  ###MP  isn't this redundant with same sequence in finally?
         gather_process.join()
         for p in processes:
             p.terminate()
@@ -330,7 +338,8 @@ def multiprocess_garbage():
 class MaxExecutionTimeError(Exception):
     pass
 
-class max_execution_time:
+
+class max_execution_time(object):
     def signal_handler(self, signum, frame):
         raise self.ex_type('operation timed out')
 
@@ -344,21 +353,23 @@ class max_execution_time:
         signal.alarm(self.seconds)
 
     def __exit__(self, *a):
-        signal.alarm(0) ###MP which signal is it? MAGIC NUMBERS, this is why signals have const'ed names
+        signal.alarm(0)  ###MP which signal is it? MAGIC NUMBERS, this is why signals have const'ed names
 
 
 def hashable_strategy(s):   ###MP predicates are nice to indicate with <is_condition> or ? if you're weird enough
     """ Predicate stating a hash-able hypothesis strategy """
-    assert hasattr(s, 'example'), 'hashable_strategy needs a strategy argument'   ###MP strategies are marked up with attributes not types/base class?
+    assert hasattr(s, 'example'), 'hashable_strategy needs a strategy argument'
+    ###MP strategies are marked up with attributes not types/base class?
     try:
-        for _ in range(10):   ###MP Why trying multiple times?  resolving attributes is determinstic
+        for _ in range(10):   ###MP Why trying multiple times?  resolving attributes is deterministic
             sample = s.example()
             _ = hash(sample)
-            assert type(sample) != dict ###MP what is assert doing in a middle of a try/except? why dict explicitely?
-    except: ###MP would it be cleaner to `except AttributeError`?  or comprehension with hasattr(s,'example') filter?
+            assert type(sample) != dict  ###MP what is assert doing in a middle of a try/except? why dict explicitly?
+    except:  ###MP would it be cleaner to `except AttributeError`?  or comprehension with hasattr(s,'example') filter?
         return False
     else:
         return True
+
 
 def replace_strategy_repr(strat, new_repr):
     """ replaces a strategy's repr and str functions with a custom one """
@@ -366,6 +377,7 @@ def replace_strategy_repr(strat, new_repr):
         __repr__ = new_repr
         __str__ = new_repr
     return custom_repr_strategy(strategies=strat.original_strategies)
+
 
 def build_garbage_strategy():
     ''' builds battle_tested's primary strategy '''
@@ -394,12 +406,12 @@ def build_garbage_strategy():
     # returns a strategy of lists with basic values
     basic_lists = partial(st.lists, elements=any_basics())
     # returns a strategy of lists with hashable values
-    hashable_lists = partial(st.lists, elements=any_basics())
+    hashable_lists = partial(st.lists, elements=any_basics())  ###MP used only in commented out code, effectively dead
 
     iterable_strategies = (
         # iterables with the same type inside
-        st.builds(lambda a:[i for i in a if type(a[0])==type(i)], basic_lists(min_size=3)),
-        st.builds(lambda a:tuple(i for i in a if type(a[0])==type(i)), basic_lists(min_size=3)),
+        st.builds(lambda a: [i for i in a if type(a[0]) == type(i)], basic_lists(min_size=3)),
+        st.builds(lambda a: tuple(i for i in a if type(a[0]) == type(i)), basic_lists(min_size=3)),
         #st.builds(lambda a:{i for i in a if type(a[0])==type(i)}, hashable_lists(min_size=3)),
         st.iterables(elements=any_basics()),
         #st.builds(lambda a:(i for i in a if type(a[0])==type(i)), basic_lists(min_size=3)),
@@ -413,10 +425,11 @@ def build_garbage_strategy():
 
     return st.one_of(any_basics(), any_iterables())
 
-garbage = replace_strategy_repr(build_garbage_strategy(), lambda s:'<garbage>')
+
+garbage = replace_strategy_repr(build_garbage_strategy(), lambda s: '<garbage>')
 
 
-class storage():
+class storage(object):
     """ where battle_tested stores things """
     ###MP this needs to be carved out to separate file
     test_inputs = deque()
@@ -427,6 +440,7 @@ class storage():
         """ use this to add new examples to battle_tested's pre-loaded examples in storage.test_inputs """
         assert type(how_many) == int, 'build_new_examples needs a positive int as the argument'
         assert how_many > 0, 'build_new_examples needs a positive int as the argument'
+
         @settings(perform_health_check=False, database_file=None, max_examples=how_many)
         @given(garbage)
         def garbage_filler(i):
@@ -445,55 +459,70 @@ class storage():
         storage.test_inputs.clear()
         storage.build_new_examples()
 
+
 try:
-    storage.test_inputs.append('waffles') # easter egg :)
-    for i in islice(easy_street.garbage(), 32): ### Why append fixed number of entries dynamically?
-        storage.test_inputs.append(i)           ### preallocate, do a copy in one move?
+    storage.test_inputs.append('waffles')  # easter egg :)
+    for i in islice(easy_street.garbage(), 32):  ### Why append fixed number of entries dynamically?
+        storage.test_inputs.append(i)            ### preallocate, do a copy in one move?
 except Exception as e:
     pass
 
 storage.build_new_examples.garbage = garbage
+
 
 class io_example(object):
     """ demonstrates the behavior of input and output """
     def __init__(self, input_args, output):
         self.input = input_args
         self.output = output
+
     def __repr__(self):
-        return '{} -> {}'.format(self.input,self.output)
+        return '{} -> {}'.format(self.input, self.output)
+
     def __str__(self):
-        return '{} -> {}'.format(self.input,self.output)  ### why not pull value of __repr__? .format cant be cheap, it's parsing and interpolation
+        return '{} -> {}'.format(self.input, self.output)  ### why not pull value of __repr__? .format cant be cheap, it's parsing and interpolation
+
     def __hash__(self):
         return hash('io_example') + hash(self.__repr__())
+
     def __eq__(self, target):
         return hasattr(target, '__hash__') and self.__hash__() == target.__hash__()
 
-class suppress():   ###MP dead code?  i dont see it referenced anywhere?
+
+class suppress(object):   ###MP dead code?  i don't see it referenced anywhere?
     """ suppress exceptions coming from certain code blocks """
     def __init__(self, *exceptions):
         self._exceptions = exceptions
+
     def __enter__(self):
         pass
+
     def __exit__(self, exctype, excinst, exctb):
         return exctype is not None and issubclass(exctype, self._exceptions)
 
+
 def is_py3():
     return sys.version_info >= (3, 0)
+
 
 class UniqueCrashContainer(tuple):
     ''' a pretty printable container for crashes '''
     def __repr__(self):
         try:
-            table = PrettyTable(('exception type','arg types','location','crash message'), sortby='exception type')
+            table = PrettyTable(('exception type', 'arg types', 'location', 'crash message'), sortby='exception type')
             table.align["exception type"] = "l"
             table.align["arg types"] = "l"
             table.align["location"] = "l"
             table.align["crash message"] = "l"
             for i in self:
-                table.add_row((i.err_type.__name__,repr(tuple(i.__name__ for i in i.arg_types)),[x for x in i.trace.split(', ') if x.startswith('line ')][-1],i.message))
+                table.add_row((i.err_type.__name__,
+                               repr(tuple(i.__name__ for i in i.arg_types)),
+                               [x for x in i.trace.split(', ') if x.startswith('line ')][-1],
+                               i.message))
             return table.get_string()
         except:
             return tuple.__repr__(self)
+
 
 class PrettyTuple(tuple):
     ''' tuples with better pretty printing '''
@@ -507,14 +536,14 @@ class PrettyTuple(tuple):
                     tup = self
                 for i in tup:
                     if isinstance(i, tuple):
-                        t = tuple(x.__name__ if isinstance(x,type) and hasattr(x,'__name__') else repr(x) for x in i)
+                        t = tuple(x.__name__ if isinstance(x, type) and hasattr(x, '__name__') else repr(x) for x in i)
                         table.add_row(t)
                     else:
                         if isinstance(i, type):
                             if hasattr(i, '__name__'):
-                                i=i.__name__
+                                i = i.__name__
                             else:
-                                i=repr(i)
+                                i = repr(i)
                         table.add_row((i,))
                 #table.align='l'
                 return '\n'.join(table.get_string().splitlines()[2:])
@@ -523,7 +552,8 @@ class PrettyTuple(tuple):
         else:
             return '()'
 
-class tb_controls():
+
+class tb_controls(object):
     old_excepthook = sys.excepthook
     no_tracebacklimit_on_sys = 'tracebacklimit' not in dir(sys)
     old_tracebacklimit = (sys.tracebacklimit if 'tracebacklimit' in dir(sys) else None)
@@ -534,7 +564,7 @@ class tb_controls():
         if is_py3():
             sys.tracebacklimit = None
         else:
-            sys.excepthook = lambda t, v, n:tb_controls.old_excepthook(t, v, None)
+            sys.excepthook = lambda t, v, n: tb_controls.old_excepthook(t, v, None)
         tb_controls.traceback_disabled = True
 
     @staticmethod
@@ -549,13 +579,16 @@ class tb_controls():
                 sys.excepthook = tb_controls.old_excepthook
             tb_controls.traceback_disabled = False
 
+
 def enable_traceback():
     """ disables tracebacks from being added to exception raises """
     tb_controls.enable_traceback()
 
+
 def disable_traceback():
     """ enables tracebacks to be added to exception raises """
     tb_controls.disable_traceback()
+
 
 def traceback_file_lines(trace_text=None):
     """ this returns a list of lines that start with file in the given traceback
@@ -563,19 +596,21 @@ def traceback_file_lines(trace_text=None):
             traceback_steps(traceback.format_exc())
     """
     # split the text into traceback steps
-    return [i for i in trace_text.splitlines() if i.startswith('  File "') and '", line' in i] ###MP extract out the condition for readability?
+    return [i for i in trace_text.splitlines() if i.startswith('  File "') and '", line' in i]
+    ###MP extract out the condition for readability?
+
 
 def traceback_steps(trace_text=None):
     """ this generates the steps in a traceback
         usage:
             traceback_steps(traceback.format_exc())
     """
-    if trace_text == None:   ### is None?
+    if trace_text is None:   ### is None?
         trace_text = traceback.format_exc()
     # get rid of the first line with traceback
     trace_text = ('\n'.join(trace_text.splitlines()[1:-1]))  ### split text to rejoin without first and last?  why not just slice the middle out?
     # split the text into traceback steps
-    file_lines = [i for i in trace_text.splitlines() if '", line' in i and i.startswith('  File "') ]
+    file_lines = [ i for i in trace_text.splitlines() if '", line' in i and i.startswith('  File "') ]
     # build the output
     out = []
     for i in trace_text.splitlines():
@@ -587,9 +622,11 @@ def traceback_steps(trace_text=None):
             out.append(i)
     yield '\n'.join(out)
 
+
 def traceback_text():
     """ this returns the traceback in text form """
-    return('\n'.join(i for i in traceback_steps()))
+    return '\n'.join(i for i in traceback_steps())
+
 
 def format_error_message(f_name, err_msg, trace_text, evil_args):
     top_line = " battle_tested crashed {f_name:}() ".format(f_name=f_name)
@@ -619,13 +656,13 @@ Breakpoint: {break_path:} - line {break_line_number:}""".format(
     try:
         with open(break_path) as f:
             for i, line in enumerate(f):
-                i+=1
+                i += 1
                 if i == break_line_number_up:
-                    line_above=line.replace('\n','')
+                    line_above = line.replace('\n', '')
                 if i == break_line_number:
-                    break_line=line.replace('\n','')
+                    break_line = line.replace('\n', '')
                 if i == break_line_number_down:
-                    line_below=line.replace('\n','')
+                    line_below = line.replace('\n', '')
 
         out += """
   {break_line_number_up:>{num_len:}}|{line_above:}
@@ -639,7 +676,7 @@ Breakpoint: {break_path:} - line {break_line_number:}""".format(
             break_line=break_line,
             num_len=len(str(break_line_number_down))+1
         )
-    except Exception as ex:
+    except Exception:
         # i only want this part if the whole file read works
         pass
     out += """
@@ -657,7 +694,7 @@ To reproduce this error, run:
 
 
 class generators(object):
-    def started(generator_function):
+    def started(generator_function):    ### Doesn't this need self as first param, since it's in a class?
         """ starts a generator when created """
         def wrapper(*args, **kwargs):
             g = generator_function(*args, **kwargs)
@@ -691,7 +728,7 @@ class generators(object):
         """ generator that holds a rolling average """
         count = 0.0
         total = generators.sum()
-        i=0
+        i = 0
         while 1:
             i = yield (((total.send(i)*1.0)/count) if count else 0)
             count += 1
@@ -744,7 +781,7 @@ class generators(object):
                     for v in i.values():
                         for i in generators.every_possible_object(v):
                             yield i
-                elif isinstance(i, (list,tuple,set)):
+                elif isinstance(i, (list, tuple, set)):
                     for i in generators.every_possible_object(i):
                         yield i
         except TypeError:
@@ -755,20 +792,22 @@ class generators(object):
 class FuzzTimeoutError(BaseException):
     pass
 
+
 from threading import Timer
+
 
 class IntervalTimer(object):    ###MP some classes are explicitly inheriting from object, others are not. Inconsistent
     """ run functions on intervals in the background
         by: Cody Kochmann
     """
-    def __init__(self, seconds, function):
-        assert type(seconds) in (int,float)
-        assert callable(function)
-        self.seconds=seconds
-        self.function=function
-        self.stopped=False
-        self.running=False
-        self.thread=Timer(self.seconds,self.function)
+    def __init__(self, seconds, fn):
+        assert type(seconds) in (int, float)
+        assert callable(fn)
+        self.seconds = seconds
+        self.function = fn
+        self.stopped = False
+        self.running = False
+        self.thread = Timer(self.seconds, self.function)
 
     def start(self):
         if self.thread.is_alive():
@@ -776,8 +815,8 @@ class IntervalTimer(object):    ###MP some classes are explicitly inheriting fro
         if not self.stopped:
             if not self.running:
                 self.function()
-                self.running=True
-            self.thread=Timer(self.seconds,self.function)
+                self.running = True
+            self.thread=Timer(self.seconds, self.function)
             self.thread.start()
             self.restart_thread=Timer(self.seconds, self.start)
             self.restart_thread.start()
@@ -788,13 +827,18 @@ class IntervalTimer(object):    ###MP some classes are explicitly inheriting fro
 
         try:
             self.thread.cancel()
-        except AttributeError: pass
+        except AttributeError:
+            pass
 
         try:
             self.restart_thread.cancel()
-        except AttributeError: pass
+        except AttributeError:
+            pass
+
 
 from io import StringIO
+
+
 def run_silently(fn):
     """ runs a function silently with no stdout """
     stdout_holder = sys.stdout
@@ -802,25 +846,27 @@ def run_silently(fn):
     _ = fn()    ### explicit is better than implicit
     sys.stdout = stdout_holder
 
+
 class ipython_tools(object):
     """ tools to make battle_tested work with ipython nicely """
-    detected = 'IPython' in sys.modules
-    if detected:
+    ### Might be cleaner to do it with try/except ImportError
+    detected_in_modules = 'IPython' in sys.modules
+    if detected_in_modules:
         from IPython import get_ipython
-        detected = get_ipython() is not None
-    if detected:
+        detected_ipython = get_ipython() is not None
+    if detected_ipython:
         magic = get_ipython().magic
 
     @staticmethod
     def silence_traceback():
-        """ silences ipythons verbose debugging temporarily """
+        """ silences IPython's verbose debugging temporarily """
         if ipython_tools.detected:
             # this hijacks stdout because there is a print in ipython.magic
-            run_silently(lambda:ipython_tools.magic("xmode Plain"))
+            run_silently(lambda: ipython_tools.magic("xmode Plain"))
 
     @staticmethod
     def verbose_traceback():
-        """ re-enables ipythons verbose tracebacks """
+        """ re-enables IPython's verbose tracebacks """
         if ipython_tools.detected:
             ipython_tools.magic("xmode Verbose")
 
@@ -836,13 +882,13 @@ def function_arg_count(fn):
         return function_arg_count(fn.func) - (len(fn.args)+len(fn.keywords))
     else:
         number_of_args_that_work = []
-        for i in range(1,64):
+        for i in range(1, 64):  ###MP MAGIC NUMBERS what does it mean?
             try:
                 fn(*range(i))
             except TypeError as ex:
-                search = findall(r'((takes (exactly )?(one|[0-9]{1,}))|(missing (one|[0-9]{1,})))', repr(ex))
-                our_specific_type_error = len(repr(findall(r'((takes (exactly )?(one|[0-9]{1,}))|(missing (one|[0-9]{1,})))', repr(ex))))>10
-                if not our_specific_type_error: # if you find something
+                search = findall(r'((takes (exactly )?(one|[0-9]+))|(missing (one|[0-9]+)))', repr(ex))
+                our_specific_type_error = len(repr(search)) > 10
+                if not our_specific_type_error:  # if you find something
                     number_of_args_that_work.append(i)
                 pass
             except Exception:
@@ -853,7 +899,7 @@ def function_arg_count(fn):
         if len(number_of_args_that_work):
             return min(number_of_args_that_work)
         #logging.warning('using backup plan')
-        return 1 # not universal, but for now, enough... :/
+        return 1  # not universal, but for now, enough... :/
 
 
 class battle_tested(object):
@@ -919,7 +965,7 @@ Parameters:
 
         # needed to determine how verbosly it will work
         self.__verify_verbose__(verbose)
-        self.verbose = False if self.quiet else verbose # quiet silences verbose mode
+        self.verbose = False if self.quiet else verbose  # quiet silences verbose mode
 
         # needed to determine the maximum time the tests can run
         self.__verify_seconds__(seconds)
@@ -967,19 +1013,19 @@ Parameters:
     def __verify_tested__(fn):
         """ asserts that the function exists in battle_tested's results """
         battle_tested.__verify_function__(fn)
-        assert fn in storage.results.keys(), '{} was not found in battle_tested\'s results, you probably haven\'t tested it yet'.format(fn)
+        assert fn in storage.results.keys(), "{} was not found in battle_tested's results, you probably haven't tested it yet".format(fn)
 
     @staticmethod
     def __verify_keep_testing__(keep_testing):
         """ ensures keep_testing is a valid argument """
         assert type(keep_testing) == bool, 'keep_testing needs to be a bool'
-        assert keep_testing == True or keep_testing == False, 'invalid value for keep_testing'
+        assert keep_testing is True or keep_testing is False, 'invalid value for keep_testing'
 
     @staticmethod
     def __verify_quiet__(quiet):
         """ ensures quiet is a valid argument """
         assert type(quiet) == bool, 'quiet needs to be a bool'
-        assert quiet == True or quiet == False, 'invalid value for quiet' ###MP This is likely a tautology.
+        assert quiet is True or quiet is False, 'invalid value for quiet'  ###MP This is likely a tautology.
         ###MP If it's a bool, it's gonna be one of these, thus always return True.
         ###MP Is there a falsifiable code for this case?
 
@@ -1000,10 +1046,10 @@ Parameters:
         """ ensures strategy is a strategy or tuple of strategies """
         def is_strategy(strategy):
             assert 'strategy' in type(strategy).__name__.lower(), 'strategy needs to be a hypothesis strategy, not {}'.format(strategy)
-            assert hasattr(strategy,'example'), 'strategy needs to be a hypothesis strategy, not {}'.format(strategy)
+            assert hasattr(strategy, 'example'), 'strategy needs to be a hypothesis strategy, not {}'.format(strategy)
             return True
         if type(strategy) == tuple:
-            assert len(strategy)>0, 'strategy cannot be an empty tuple, please define at least one'
+            assert len(strategy) > 0, 'strategy cannot be an empty tuple, please define at least one'
             assert all(is_strategy(i) for i in strategy), 'not all members in strategy were valid hypothesis strategies'
         else:
             is_strategy(strategy)
@@ -1015,56 +1061,57 @@ Parameters:
     # safe container that holds crash results
     Crash = stricttuple(
         'Crash',
-        arg_types = (
-             lambda arg_types:type(arg_types)==tuple,
-             lambda arg_types:len(arg_types)>0,
+        arg_types=(
+             lambda arg_types: type(arg_types) == tuple,
+             lambda arg_types: len(arg_types) > 0,
         ),
-        args = (
-            lambda args:type(args)==tuple,
-            lambda args:len(args)>0,
+        args=(
+            lambda args: type(args) == tuple,
+            lambda args: len(args) > 0,
         ),
-        message = (
-            lambda message:type(message).__name__ in 'str unicode NoneType' ,
+        message=(
+            lambda message: type(message).__name__ in 'str unicode NoneType',
         ),
-        err_type = (
-            lambda err_type:type(err_type)==type ,
+        err_type=(
+            lambda err_type: type(err_type) == type,
         ),
-        trace = (
-            lambda trace:type(trace).__name__ in 'str unicode' ,
+        trace=(
+            lambda trace: type(trace).__name__ in 'str unicode',
         )
     )
 
     # safe container that holds test results
     Result = stricttuple(
         'Result',
-        successful_input_types = (
-            lambda successful_input_types: type(successful_input_types)==PrettyTuple,
-            lambda successful_input_types: all(type(i)==tuple for i in successful_input_types),
-            lambda successful_input_types: all(all(isinstance(x,type) for x in i) for i in successful_input_types)
+        successful_input_types=(
+            lambda successful_input_types: type(successful_input_types) == PrettyTuple,
+            lambda successful_input_types: all(type(i) == tuple for i in successful_input_types),
+            lambda successful_input_types: all(all(isinstance(x, type) for x in i) for i in successful_input_types)
         ),
-        crash_input_types = (
-            lambda crash_input_types: type(crash_input_types)==PrettyTuple,
-            lambda crash_input_types: all(type(i)==tuple for i in crash_input_types),
-            lambda crash_input_types: all(all(isinstance(x,type) for x in i) for i in crash_input_types)
+        crash_input_types=(
+            lambda crash_input_types: type(crash_input_types) == PrettyTuple,
+            lambda crash_input_types: all(type(i) == tuple for i in crash_input_types),
+            lambda crash_input_types: all(all(isinstance(x, type) for x in i) for i in crash_input_types)  ###MP slightly gnarly, generator pipeline instead?
         ),
-        iffy_input_types = (
-            lambda iffy_input_types: type(iffy_input_types)==PrettyTuple,
-            lambda iffy_input_types: all(type(i)==tuple for i in iffy_input_types),
-            lambda iffy_input_types: all(all(isinstance(x,type) for x in i) for i in iffy_input_types)
+        iffy_input_types=(
+            lambda iffy_input_types: type(iffy_input_types) == PrettyTuple,
+            lambda iffy_input_types: all(type(i) == tuple for i in iffy_input_types),
+            lambda iffy_input_types: all(all(isinstance(x, type) for x in i) for i in iffy_input_types)
         ),
-        output_types = (
-            lambda output_types: type(output_types)==PrettyTuple,
+        output_types=(
+            lambda output_types: type(output_types) == PrettyTuple,
             lambda output_types: all(isinstance(i, type) for i in output_types),
         ),
-        exception_types = (
-            lambda exception_types: type(exception_types)==PrettyTuple,
-            lambda exception_types: all(isinstance(i,Exception) or issubclass(i,Exception) for i in exception_types),
+        exception_types=(
+            lambda exception_types: type(exception_types) == PrettyTuple,
+            lambda exception_types: all(isinstance(i, Exception) or issubclass(i, Exception) for i in exception_types),
+            ###MP might be redundant, isinstance supposed to check if it's a subclass, no need to call it explicitely
         ),
-        unique_crashes = (
-            lambda unique_crashes: type(unique_crashes)==UniqueCrashContainer,
+        unique_crashes=(
+            lambda unique_crashes: type(unique_crashes) == UniqueCrashContainer,
         ),
-        successful_io = (
-            lambda successful_io: type(successful_io)==deque,
+        successful_io=(
+            lambda successful_io: type(successful_io) == deque,
             lambda successful_io: all(type(i) == io_example for i in successful_io) if len(successful_io) else 1
         ),
     )
@@ -1079,7 +1126,7 @@ Parameters:
     def stats(fn):
         ''' returns the stats found when testing a function '''
         results = battle_tested.results(fn)
-        return {k:len(getattr(results, k)) for k in results._fields}
+        return {k: len(getattr(results, k)) for k in results._fields}
 
     @staticmethod
     def print_stats(fn):
@@ -1089,9 +1136,9 @@ Parameters:
         s = 'fuzzing {}() found:'.format(fn_name)
         s += ' '*(79-len(s))
         print(s)
-        t=PrettyTable(None)
+        t = PrettyTable(None)
         for k in sorted(stats.keys()):
-            t.add_row((k,stats[k]))
+            t.add_row((k, stats[k]))
         print('\n'.join(t.get_string().splitlines()[2:]))
 
     # these two are here so the maps can have doc strings
@@ -1109,9 +1156,8 @@ Parameters:
         if strategy is not None:  # logic for a custom strategy
             battle_tested.__verify_strategy__(strategy)
             if type(strategy) == tuple:
-                assert len(strategy) == args_needed, 'invalid number of strategies, needed {} got {}'.format(
-                    args_needed, len(strategy)
-                )
+                assert len(strategy) == args_needed, \
+                    'invalid number of strategies, needed {} got {}'.format(args_needed, len(strategy))
                 print('using {} custom strategies - {}'.format(len(strategy), strategy))
                 strategy = st.builds(lambda *x: list(x), *strategy)
                 ex = strategy.example
@@ -1121,7 +1167,7 @@ Parameters:
                 # generate lists containing output only from the given strategy
                 ex = strategy.example
                 for _ in gen.loop():
-                    out = [ex() for i in range(args_needed)]
+                    out = [ex() for _ in range(args_needed)]
                     for i in product(out, repeat=len(out)):
                         yield i
         else:  # logic for fuzzing approach
@@ -1136,10 +1182,12 @@ Parameters:
             try:
                 garbage = multiprocess_garbage()
                 while 2:
-                    out = [next(garbage) for i in range(args_needed)]
+                    out = [next(garbage) for _ in range(args_needed)]
                     for i in product(out, repeat=len(out)):
                         yield i
             finally:
+                ###MP you're assuming garbage = multiprocess_garbage() was successful.
+                ###MP if that's what you intend, make it else, not finally
                 garbage.close()
 
     @staticmethod
@@ -1228,18 +1276,18 @@ Parameters:
         battle_tested.crash_map.clear()
         battle_tested.success_map.clear()
 
+        ###MP dead code, not called anywhere
         count = generators.counter()    ###MP count, average and timer are way too generic, not sure if builtins.
         average = generators.avg()      ###MP or overwriting builtins for clever reasons.  Clarify it with better names
-        timer = generators.timer()      ###MP or leave it with generators.blah() for readibility/lack of confusion
-
+        timer = generators.timer()      ###MP or leave it with generators.blah() for readability/lack of confusion
 
         def calculate_window_speed():
             w = calculate_window_speed.window   ###MP attribute of functions inside of that very function?  WAT?
             w.append(_inner_window_speed())
             return int((1.0*sum(w))/len(w))
         calculate_window_speed.window = deque(maxlen=4)   ###MP is this in or out of the function?  
-                ###MP if it's out, why weirdly formatted and hiding in between functions? 
-                ###MP if it's a utility function, carve it out to a utility module
+        ###MP if it's out, why weirdly formatted and hiding in between functions?
+        ###MP if it's a utility function, carve it out to a utility module
 
         def _inner_window_speed():  ###MP what is this for?
             cw = display_stats.count_window
@@ -1275,24 +1323,25 @@ Parameters:
         display_stats.test_time = seconds
         display_stats.remaining = display_stats.test_time
         display_stats.count = 0
-        display_stats.time_window = deque(maxlen=2) ###MP I'm not seeing this being faster than 2 variables or list or tuple... Overcomplicated for what it does?
+        display_stats.time_window = deque(maxlen=2)  ###MP I'm not seeing this being faster than 2 variables or list or tuple... Overcomplicated for what it does?
         display_stats.count_window = deque(maxlen=2)
         display_stats.timer = generators.timer()
         display_stats.average = generators.avg()
         display_stats.interval = IntervalTimer(0.16, display_stats)
         display_stats.quiet = quiet or verbose
-        display_stats.start = lambda:(next(display_stats.timer),display_stats.interval.start())
+        display_stats.start = lambda: (next(display_stats.timer), display_stats.interval.start())
 
         ipython_tools.silence_traceback()
 
         storage.results[fn] = {
-            'successful_input_types':deque(maxlen=500), ###MP MAGIC NUMBER.  why 500 if sucessful_io is 512?  needs to be self adjusting, or easily changable from fuzz()
-            'crash_input_types':set(),  # types that ONLY crash the function
-            'iffy_input_types':set(),  # types that both succeed and crash the function
-            'output_types':set(),  # types returned by the function
-            'exception_types':set(),  # exceptions raised by the function
-            'unique_crashes':dict(),  # further details on each crash
-            'successful_io':deque()  # inputs->output mapping for functions that got to the end ###MP is this duplication of fn_info.successful_io?  why not limited to 512? why variable not fixed?
+            'successful_input_types': deque(maxlen=500),  ###MP MAGIC NUMBER.  why 500 if successful_io is 512?  needs to be self adjusting, or easily changable from fuzz()
+            'crash_input_types': set(),  # types that ONLY crash the function
+            'iffy_input_types': set(),  # types that both succeed and crash the function
+            'output_types': set(),  # types returned by the function
+            'exception_types': set(),  # exceptions raised by the function
+            'unique_crashes': dict(),  # further details on each crash
+            'successful_io': deque()  # inputs->output mapping for functions that got to the end
+            # ###MP is this duplication of fn_info.successful_io?  why not limited to 512? why variable not fixed?
         }
 
         def fn_info():
@@ -1331,8 +1380,8 @@ Parameters:
                 with max_execution_time(int(display_stats.remaining)):
                     out = fn(*arg_list)
                     # if out is a generator, empty it out.
-                    if hasattr(out, '__iter__') and (hasattr(out,'__next__') or hasattr(out,'next')):
-                        for i in out:
+                    if hasattr(out, '__iter__') and (hasattr(out, '__next__') or hasattr(out, 'next')):
+                        for _ in out:
                             pass
                 # the rest of this block is handling logging a success
                 input_types = tuple(type(i) for i in arg_list)
@@ -1362,7 +1411,7 @@ Parameters:
                     pass
             except MaxExecutionTimeError:
                 pass
-            except fuzz.allow as ex:
+            except fuzz.allow:
                 pass
             except Exception as ex:
                 ex_message = ex.args[0] if (
@@ -1375,9 +1424,13 @@ Parameters:
 
                 if keep_testing:
                     tb_text = traceback_text()
-                    tb = '{}{}'.format(traceback_file_lines(tb_text),repr(type(ex)))
-                    battle_tested.crash_map[tb]={'type':type(ex),'message':ex_message,'args':arg_list,'arg_types':tuple(type(i) for i in arg_list)}
-                    storage.results[fn]['unique_crashes'][tb]=battle_tested.Crash(
+                    tb = '{}{}'.format(traceback_file_lines(tb_text), repr(type(ex)))
+                    battle_tested.crash_map[tb] = {'type': type(ex),
+                                                   'message': ex_message,
+                                                   'args': arg_list,
+                                                   'arg_types': tuple(type(i) for i in arg_list)
+                                                   }
+                    storage.results[fn]['unique_crashes'][tb] = battle_tested.Crash(
                         err_type=type(ex),
                         message=repr(ex_message),
                         args=arg_list,
@@ -1397,9 +1450,9 @@ Parameters:
 
                     error_string = format_error_message(
                         fn.__name__,
-                        '{} - {}'.format(type(ex).__name__,ex_message),
+                        '{} - {}'.format(type(ex).__name__, ex_message),
                         tb,
-                        (arg_list if len(arg_list)!=1 else '({})'.format(repr(arg_list[0])))
+                        (arg_list if len(arg_list) != 1 else '({})'.format(repr(arg_list[0])))
                     )
                     ex.message = error_string
                     ex.args = error_string,
@@ -1407,7 +1460,7 @@ Parameters:
 
         fuzz.has_time = True
         fuzz.first_run = True
-        fuzz.timestopper = Timer(seconds, lambda:setattr(fuzz,'has_time',False))
+        fuzz.timestopper = Timer(seconds, lambda: setattr(fuzz, 'has_time', False))
         fuzz.exceptions = deque()
         fuzz.args_needed = args_needed
         fuzz.allow = allow
@@ -1447,23 +1500,23 @@ Parameters:
                 pass
 
             results_dict = storage.results[fn]
-            results_dict['iffy_input_types'] = set(i for i in results_dict['crash_input_types'] if i in results_dict['successful_input_types'])
+            results_dict['iffy_input_types'] = {i for i in results_dict['crash_input_types'] if i in results_dict['successful_input_types']}
 
             # merge the io maps
             for i in fn_info.none_successful_io:
-                if len(fn_info.successful_io)<fn_info.successful_io.maxlen:
+                if len(fn_info.successful_io) < fn_info.successful_io.maxlen:
                     fn_info.successful_io.append(i)
             # remove io map with None examples
             del fn_info.none_successful_io
 
             storage.results[fn] = battle_tested.Result(
-                successful_input_types = PrettyTuple(set(i for i in results_dict['successful_input_types'] if i not in results_dict['iffy_input_types'] and i not in results_dict['crash_input_types'])),
-                crash_input_types = PrettyTuple(results_dict['crash_input_types']),
-                iffy_input_types = PrettyTuple(results_dict['iffy_input_types']),
-                output_types = PrettyTuple(results_dict['output_types']),
-                exception_types = PrettyTuple(results_dict['exception_types']),
-                unique_crashes = UniqueCrashContainer(results_dict['unique_crashes'].values()),
-                successful_io = fn_info.successful_io
+                successful_input_types=PrettyTuple(set(i for i in results_dict['successful_input_types'] if i not in results_dict['iffy_input_types'] and i not in results_dict['crash_input_types'])),   ###MP extract the conditions, name them something meaningful
+                crash_input_types=PrettyTuple(results_dict['crash_input_types']),
+                iffy_input_types=PrettyTuple(results_dict['iffy_input_types']),
+                output_types=PrettyTuple(results_dict['output_types']),
+                exception_types=PrettyTuple(results_dict['exception_types']),
+                unique_crashes=UniqueCrashContainer(results_dict['unique_crashes'].values()),
+                successful_io=fn_info.successful_io
             )
             ## find the types that both crashed and succeeded
             #results_dict['iffy_input_types'] = set(i for i in results_dict['crash_input_types'] if i in results_dict['successful_input_types'])
@@ -1482,22 +1535,26 @@ Parameters:
                 print('battle_tested: no falsifying examples found')
 
 
-
         # try to save the fields to the function object
         try:
             for f in storage.results[fn]._fields:
                 setattr(fn, f, getattr(storage.results[fn], f))
-        except: pass
+        except:
+            pass
         # try to store the unique crashes as readable attributes
         try:
             for crash in storage.results[fn].unique_crashes:
                 try:
-                    setattr(fn_info.unique_crashes, '{}_{}'.format(crash.err_type.__name__, [x.strip() for x in crash.trace.split(', ') if x.startswith('line ')][-1].replace(' ','_')), crash)
-                except: pass
+                    setattr(fn_info.unique_crashes, '{}_{}'.format(crash.err_type.__name__, [x.strip() for x in crash.trace.split(', ') if x.startswith('line ')][-1].replace(' ', '_')), crash)  ###MP simplify, refactor, name things meaningfully
+                except:
+                    pass
                 try:
-                    setattr(storage.results[fn].unique_crashes, '{}_{}'.format(crash.err_type.__name__, [x.strip() for x in crash.trace.split(', ') if x.startswith('line ')][-1].replace(' ','_')), crash)
-                except: pass
-        except: pass
+                    setattr(storage.results[fn].unique_crashes, '{}_{}'.format(crash.err_type.__name__, [x.strip() for x in crash.trace.split(', ') if x.startswith('line ')][-1].replace(' ', '_')), crash)
+                except:
+                    pass
+        except:
+            pass
+
         try:
             def dummy_function(): pass
             for a in dir(fn_info):
@@ -1506,9 +1563,9 @@ Parameters:
                         setattr(fn, a, getattr(fn_info, a))
                     except:
                         pass
-        except: pass
+        except:
+            pass
         return storage.results[fn]
-
 
     def __call__(self, fn):
         """ runs before the decorated function is called """   ### yes, but what does it do?
@@ -1521,7 +1578,7 @@ Parameters:
                 self.fuzz(fn, seconds=self.seconds, max_tests=self.max_tests, keep_testing=self.keep_testing, verbose=self.verbose, quiet=self.quiet, allow=self.allow, strategy=self.strategy)
             #self.tested = True
 
-        s = {'logger','default_output'}  ###MP set has better avg case than tuple or list for 2 elements. 
+        s = {'logger', 'default_output'}  ###MP set has better avg case than tuple or list for 2 elements.
         ### list is faster if the first element is the match. if the frequency of the matches is lobsided, stuff the frequent one
         ### in the first element of a list, might be a win
         if any(i in self.kwargs for i in s):
@@ -1532,19 +1589,21 @@ Parameters:
                 except Exception as e:
                     # log the error
                     if 'logger' in self.kwargs:
-                        assert callable(self.kwargs['logger']), "battle_tested.logger needs to be a callable log function, not: {0}".format(repr(self.kwargs['logger']))
+                        assert callable(self.kwargs['logger']), \
+                            "battle_tested.logger needs to be a callable log function, not: {0}".format(repr(self.kwargs['logger']))
                         self.kwargs['logger'](e)
                     else:
                         logging.exception(e)
-                    # only raise the error if there isnt a default_output
+                    # only raise the error if there isn't a default_output
                     if 'default_output' in self.kwargs:
                         out = self.kwargs['default_output']
                     else:
-                        raise e
+                        raise e     ###MP log and reraise is a logging anti-pattern. might be valid here because of conditional. re-evaluate
                 return out
             return wrapper
         else:
             return fn
+
 
 # make fuzz its own independent function
 fuzz = battle_tested.fuzz
@@ -1552,14 +1611,17 @@ results = battle_tested.results
 stats = battle_tested.stats
 print_stats = battle_tested.print_stats
 
+
 def crash_map():
     '''returns a map of crashes generated by the previous test'''
-    return tuple(sorted(battle_tested.crash_map.values(), key=lambda i:i['type'].__name__))
+    return tuple(sorted(battle_tested.crash_map.values(), key=lambda i: i['type'].__name__))
     ###MP is key=lambda... faster then itemgetter/attrgetter?  same for success_map
+
 
 def success_map():
     '''returns a map of data types that were able to get through the function without crashing'''
-    return tuple(sorted(battle_tested.success_map, key=lambda i:i[0].__name__))
+    return tuple(sorted(battle_tested.success_map, key=lambda i: i[0].__name__))
+
 
 def function_versions(fn):
     ''' returns all tested versions of the given function '''
@@ -1567,16 +1629,18 @@ def function_versions(fn):
         if f.__name__ == fn.__name__ and f.__module__ == fn.__module__:
             yield f
 
-def time_io(fn,args,rounds=1000):
+
+def time_io(fn, args, rounds=1000):
     ''' time how long it takes for a function to run through given args '''
-    ###MP isnt this just the timeit decorator?
+    ###MP isn't this just the timeit decorator?
     tests = range(rounds)
-    args = tuple(args) # solidify this so we can run it multiple times
+    args = tuple(args)  # solidify this so we can run it multiple times
     start = time()
     for t in tests:
         for a in args:
-            fn(*a)
+            fn(*a)  ###MP where is a coming from?  shouldnt this be t from tests?
     return time()-start
+
 
 def all_common_successful_io(*functions):
     ''' gets all io objects that works with all given '''
@@ -1586,7 +1650,7 @@ def all_common_successful_io(*functions):
             try:
                 out = fn(*io.input)
                 if hasattr(out, '__iter__'):
-                    for i in out:
+                    for _ in out:
                         pass
                 succeeded += 1
             except:
@@ -1594,14 +1658,15 @@ def all_common_successful_io(*functions):
         if succeeded == len(functions):
             yield io
 
+
 def time_all_versions_of(fn):
     ''' time how long each version of a function takes to run through the saved io '''
     print('\ntiming all versions of {}'.format(fn.__name__))
     common_io = partial(all_common_successful_io, *list(function_versions(fn)))
     print('found {} inputs that all versions can run'.format(len(list(common_io()))))
     for f in function_versions(fn):
-        print('\n{}\n\n{}'.format('-'*60,getsource(f)))
-        print('{:.10f}'.format(time_io(f,(io.input for io in common_io()))),'seconds')
+        print('\n{}\n\n{}'.format('-'*60, getsource(f)))
+        print('{:.10f}'.format(time_io(f, (io.input for io in common_io()))),'seconds')  ###MP extract, simplify, name
         #print(time_io(f,(io.input for io in f.successful_io)),'seconds with {} runs'.format(len(f.successful_io)*1000))
         #    for ff in function_versions(fn):
         #    #print(time_io(f,(io.input for io in ff.successful_io)),'seconds')
@@ -1612,11 +1677,14 @@ def run_tests():
     ''' this is where all of the primary functionality of battle_tested is tested '''
     # test instance methods
 
-    class TestClass(tuple):
-        def testmethod(self,a,b,c,d,e):
-            return a,b,c,d
+    ###MP run_tests should be a separate file
 
-    tc = TestClass([1,2,3])
+    class TestClass(tuple):
+        # noinspection PyUnusedLocal
+        def testmethod(self, a, b, c, d, e):
+            return a, b, c, d
+
+    tc = TestClass([1, 2, 3])
     print(fuzz(tc.testmethod))
 
     l = list(range(10))
@@ -1631,50 +1699,54 @@ def run_tests():
         for i in a:
             yield i
     print(fuzz(test_generator, seconds=10))
+
     def test_generator(a):
         for i in a:
-            yield i,i
+            yield i, i
     print(fuzz(test_generator, seconds=10))
 
     print(time_all_versions_of(test_generator))
 
     # try the custom strategy syntax
-    @battle_tested(strategy=st.text(),max_tests=50)
-    def custom_text_strategy(a,b):
+    @battle_tested(strategy=st.text(), max_tests=50)
+    def custom_text_strategy(a, b):
         if len(a) == 0:
             return None
         else:
             return a in b
 
     print(dir(custom_text_strategy))
-    for i in ('successful_io','crash_input_types','exception_types','iffy_input_types','unique_crashes','output_types','successful_input_types'):
+    output_types = {'successful_io', 'crash_input_types', 'exception_types', 'iffy_input_types', 'unique_crashes', 'output_types',
+     'successful_input_types'}
+    for i in output_types:
         assert hasattr(custom_text_strategy, i), 'custom_text_strategy doesnt have a {} attribute'.format(i)
 
-    def custom_text_fuzz_strategy(a,b):
+    def custom_text_fuzz_strategy(a, b):
         return a in b
     fuzz(custom_text_fuzz_strategy, strategy=st.text())
 
     # try the multiple custom strategy syntax
     @battle_tested(strategy=(st.text(), st.integers()))
-    def custom_text_int_strategy(a,b):
+    def custom_text_int_strategy(a, b):
         assert isinstance(a, str), 'a needs to be text'
         assert isinstance(b, int), 'b needs to be an int'
         return a+b
 
-
-    def custom_text_int_fuzz_strategy(a,b):
+    def custom_text_int_fuzz_strategy(a, b):
         return a in b
-    r=fuzz(custom_text_fuzz_strategy, strategy=(st.integers(),st.text()))
+    r = fuzz(custom_text_fuzz_strategy, strategy=(st.integers(), st.text()))
 
     #======================================
     #  Examples using the wrapper syntax
     #======================================
+    # noinspection PyUnusedLocal
     @battle_tested(default_output=[], seconds=1, max_tests=5)
     def sample(i):
         return []
 
+    # noinspection PyUnusedLocal
     @battle_tested(keep_testing=False)
-    def sample2(a,b,c,d=''):
+    def sample2(a, b, c, d=''):
         t = a, b, c, d
 
     # output for documentation
@@ -1686,55 +1758,68 @@ def run_tests():
     @battle_tested(seconds=1)
     def arg1_1sec(a):
         return a
+
     @battle_tested()
     def arg1(a):
         return a
+
     @battle_tested(seconds=1)
-    def args2_1sec(a,b):
+    def args2_1sec(a, b):
         return a+b
+
     @battle_tested()
-    def args2(a,b):
+    def args2(a, b):
         return a+b
+
     @battle_tested(seconds=1)
-    def args3_1sec(a,b,c):
+    def args3_1sec(a, b, c):
         return a+b+c
+
     @battle_tested()
-    def args3(a,b,c):
+    def args3(a, b, c):
         return a+b+c
+
     @battle_tested(seconds=1)
-    def args4_1sec(a,b,c,d):
+    def args4_1sec(a, b, c, d):
         return a+b+c+d
+
     @battle_tested()
-    def args4(a,b,c,d):
+    def args4(a, b, c, d):
         return a+b+c+d
+
     @battle_tested(seconds=1)
-    def args5_1sec(a,b,c,d,e):
+    def args5_1sec(a, b, c, d, e):
         return a+b+c+d+e
+
     @battle_tested()
-    def args5(a,b,c,d,e):
+    def args5(a, b, c, d, e):
         return a+b+c+d+e
 
     # test the allow option
     @battle_tested(allow=(AssertionError,))
-    def allowed_to_assert(a,b):
-        assert a==b, 'a needs to equal b'
+    def allowed_to_assert(a, b):
+        assert a == b, 'a needs to equal b'
+
     @battle_tested(allow=(AssertionError,), keep_testing=False)
-    def allowed_to_assert_and_stop_on_fail(a,b):
-        assert a==b, 'a needs to equal b'
+    def allowed_to_assert_and_stop_on_fail(a, b):
+        assert a == b, 'a needs to equal b'
     fuzz(max, allow=(ValueError,))
-    fuzz(max, keep_testing=False, allow=(ValueError,TypeError))
+    fuzz(max, keep_testing=False, allow=(ValueError, TypeError))
 
 
     # test going quiet
     print('going quiet')
     def quiet_test_out():
         pass
+
     @battle_tested(keep_testing=False, quiet=True)
-    def quiet_test(a,b,c):
-        setattr(quiet_test_out, 'args', (a,b,c))
+    def quiet_test(a, b, c):
+        setattr(quiet_test_out, 'args', (a, b, c))
+
+    # noinspection PyUnresolvedReferences
     assert len(quiet_test_out.args) == 3, 'fuzzing quiet test failed'
 
-    quiet_lambda = lambda a,b,c:setattr(quiet_test_out, 'lambda_args', (a,b,c))
+    quiet_lambda = lambda a, b, c: setattr(quiet_test_out, 'lambda_args', (a, b, c))
     r = fuzz(quiet_lambda, quiet=True, keep_testing=False)
     assert len(quiet_test_out.lambda_args) == 3, 'fuzzing quiet lambda failed'
 
@@ -1742,12 +1827,12 @@ def run_tests():
 
     # proof that they only get tested once
     print(sample(4))
-    print(sample2(1,2,3,4))
+    print(sample2(1, 2, 3, 4))
     print(sample('i'))
-    print(sample2('a','b',2,4))
+    print(sample2('a', 'b', 2, 4))
 
     # prove that successes of any type are possible
-    r = fuzz(lambda i:i , keep_testing=True, seconds=10)
+    r = fuzz(lambda i: i, keep_testing=True, seconds=10)
     assert len(r.crash_input_types) == 0, 'fuzzing lambda() changed expected behavior'
     assert len(r.exception_types) == 0, 'fuzzing lambda() changed expected behavior'
     assert len(r.iffy_input_types) == 0, 'fuzzing lambda() changed expected behavior'
@@ -1759,13 +1844,13 @@ def run_tests():
     #  Examples using the function syntax
     #======================================
 
-    def sample3(a,b):
+    def sample3(a, b):
         # this one blows up on purpose
         return a+b+1
 
     # this tests a long fuzz
-    r=fuzz(sample3, seconds=20)
-    assert len(r.successful_io)>0, 'succesful_io was empty'
+    r = fuzz(sample3, seconds=20)
+    assert len(r.successful_io) > 0, 'successful_io was empty'
 
     print(r.successful_io)
 
@@ -1778,30 +1863,31 @@ def run_tests():
     assert len(r.output_types) > 1, 'fuzzing sample3() changed expected behavior'
     assert len(r.successful_input_types) > 10, 'fuzzing sample3() changed expected behavior'
 
-    fuzz(lambda i:i)
+    fuzz(lambda i: i)
 
     #======================================
     #   example harness
     #======================================
-    def harness(key,value):
+    # noinspection PyGlobalUndefined
+    def harness(key, value):
         global mydict
         global crash_examples
         global successful_types
         try:
-            mydict[key]=value
+            mydict[key] = value
             successful_types.add((type(key).name, type(value).name))
         except Exception as e:
             print('found one')
-            crash_examples[e.args[0]]=(key,value)
+            crash_examples[e.args[0]] = (key, value)
 
     for f in storage.results.keys():
         s = '\n'
         try:
-            s+=f.__module__
-            s+=' '
-            s+=f.__name__
-            s+=' '
-            s+=str([i for i in dir(f) if not i.startswith('_')])
+            s += f.__module__
+            s += ' '
+            s += f.__name__
+            s += ' '
+            s += str([i for i in dir(f) if not i.startswith('_')])
         except:
             pass
         finally:
@@ -1818,7 +1904,7 @@ MP ideas:
  1. how to instrument objects to find out which member/attrib gets accessed how frequently?
    * And how to keep track whether the access was create/read/write/mod/delete?
  2. Even if strategy is restricted to numerics, but the function uses float() to normalize inputs, 
-    we should try to feed it things that are not numerics, but convertable to numerics,
+    we should try to feed it things that are not numerics, but convertible to numerics,
     i.e.: 'inf', 'Nan', and '1' (string of a numeric). That would catch more edge cases.
  3. For 'armoring' phase, it'd be nice to indicate which type of crash we're looking for,
     or some other arbitrary condition to be met. It could also make the process faster,
@@ -1870,5 +1956,5 @@ MP ideas:
     |   int   |   int   |   int   |
     +---------+---------+---------+
 
-    BUG:After passing in custom strategy, successful_input_types does not count SOME types of intputs correctly.
+    BUG:After passing in custom strategy, successful_input_types does not count SOME types of inputs correctly.
 """
