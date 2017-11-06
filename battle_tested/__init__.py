@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified 2017-10-30
-# @Last Modified time: 2017-10-30 14:05:37
+# @Last Modified time: 2017-11-01 09:25:45
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -33,31 +33,58 @@ from __future__ import print_function, unicode_literals
 from collections import deque
 from functools import wraps, partial
 from gc import collect as gc
+from generators.inline_tools import attempt
+from graphdb import GraphDB
 from hypothesis import given, strategies as st, settings, Verbosity, unlimited
 from hypothesis.errors import HypothesisException
 from itertools import product, cycle, chain, islice
+from multiprocessing import Process, Queue, cpu_count as multi_cpu_count
 from prettytable import PrettyTable
 from random import choice, randint
 from re import findall
 from stricttuple import stricttuple
 from string import ascii_letters, digits
+from time import sleep
 from time import time
 import generators as gen
 import logging
+import os
 import signal
 import sys
 import traceback
-import os
+
 
 
 __all__ = 'battle_tested', 'fuzz', 'disable_traceback', 'enable_traceback', 'garbage', 'crash_map', 'success_map', 'results', 'stats', 'print_stats', 'function_versions', 'time_all_versions_of', 'easy_street', 'run_tests', 'multiprocess_garbage'
 
-try:
-    # try to set the encoding
-    reload(sys)
-    sys.setdefaultencoding('utf8')
-except:
-    pass
+
+# try to set the encoding
+attempt(lambda: (reload(sys), sys.setdefaultencoding('utf8')))
+
+class hardware:
+    ''' single reference of what hardware the system is working with '''
+    # get the count of cpu cores, if it fails, assume 1 for safety
+    cpu_count = attempt(multi_cpu_count, default_output=1)
+    single_core = cpu_count == 1
+
+def db_path(db_name='battle_tested.db'):
+    ''' returns the full path of battle_tested's database '''
+    from os.path import dirname, join, isdir
+    # path of this file
+    this_files_path = dirname(__file__)
+    # path of where dbs are stored
+    db_dir = join(this_files_path, 'db')
+    # makr the db_dir if it doesnt exist
+    if not isdir(db_dir):
+        from os import mkdir, chmod
+        from stat import S_IRUSR, S_IWUSR, S_IXUSR
+        # make the directory
+        mkdir(db_dir)
+        # try to set the permissions correctly
+        # this is in 'attempt' because it might fail on some systems
+        attempt(lambda: chmod(db_dir, (S_IRUSR | S_IWUSR | S_IXUSR)))
+    # return the full path of the db
+    return join(db_dir, db_name)
 
 def getsource(fn):
     ''' basically just inspect.getsource, only this one doesn't crash as much '''
@@ -65,34 +92,22 @@ def getsource(fn):
     try:
         return getsource(fn)
     except:
-        try:
-            return '{}'.format(fn)
-        except:
-            return ''
+        return attempt(lambda: '{}'.format(fn), default_output='')
 
 def pin_to_cpu(core_number):
     ''' pin the current process to a specific cpu to avoid dumping L1 cache'''
     assert type(core_number) == int, 'pin_to_cpu needs an int as the argument'
-    # only run if os has sched_setaffinity and getpid available
-    try:
-        os.sched_setaffinity(os.getpid(), (core_number,))
-    except:
-        # just attempt this, it wont work on EVERY system in existence
-        pass
-
-pin_to_cpu(0)
+    # just attempt this, it wont work on EVERY system in existence
+    attempt(lambda: os.sched_setaffinity(os.getpid(), (core_number,)))
 
 def renice(new_niceness):
     ''' renice the current process calling this function to the new input '''
     assert type(new_niceness) == int, 'renice needs an int as its argument'
+    # just attempt this, it wont work on EVERY system in existence
+    attempt(lambda: os.nice(new_niceness))
 
-    try:
-        os.nice(new_niceness)
-    except:
-        # just attempt this, it wont work on EVERY system in existence
-        pass
-
-renice(15)
+pin_to_cpu(0)  # pin this main process to the first core
+renice(15)  # renice this main process, idk why 15, but it gives room for priorities above and below
 
 def shorten(string, max_length=80, trailing_chars=3):
     ''' trims the 'string' argument down to 'max_length' to make previews to long string values '''
@@ -112,23 +127,29 @@ def shorten(string, max_length=80, trailing_chars=3):
     )
 
 class easy_street:
+    ''' This is a namespace for high speed test generation of various types '''
+
     @staticmethod
     def chars():
         test_chars = ascii_letters + digits
-        for _ in cycle([0]*300):
+        for _ in gen.loop():
             for combination in product(test_chars, repeat=4):
                 for i in combination:
                     yield i
 
     @staticmethod
     def strings():
-        test_strings = list(set(findall(r'[a-zA-Z\_]{1,}',[
-            v.__doc__ for v in globals().values() if hasattr(v, '__doc__')
-        ].__repr__()))) + [
+        test_strings = [
             '',
             'exit("######## WARNING this code is executing strings blindly ########")'
         ]
-        for _ in cycle([0]*300):
+        # this snippet rips out every word from doc strings
+        test_strings += list(set(findall(
+            r'[a-zA-Z\_]{1,}',
+            [v.__doc__ for v in globals().values() if hasattr(v, '__doc__')].__repr__()
+        )))
+
+        for _ in gen.loop():
             for combination in product(test_strings, repeat=4):
                 for i in combination:
                     yield i
@@ -136,7 +157,7 @@ class easy_street:
     @staticmethod
     def bools():
         booleans = (True, False)
-        for _ in cycle([0]*300):
+        for _ in gen.loop():
             for combination in product(booleans, repeat=4):
                 for i in combination:
                     yield i
@@ -144,7 +165,7 @@ class easy_street:
     @staticmethod
     def ints():
         numbers = tuple(range(-33,65))
-        for _ in cycle([0]*300):
+        for _ in gen.loop():
             for combination in product(numbers, repeat=3):
                 for i in combination:
                     yield i
@@ -163,7 +184,7 @@ class easy_street:
         strategies = list(gen.chain(product(strategies, repeat=len(strategies))))
         lengths = cycle(list(range(0, 21)))
 
-        for _ in cycle([0]*300):
+        for _ in gen.loop():
             for length in lengths:
                 for strat in strategies:
                     yield [st for st in islice(strat, length)]
@@ -179,7 +200,7 @@ class easy_street:
         strategies = list(gen.chain(product(strategies, repeat=len(strategies))))
         lengths = cycle(list(range(0, 21)))
 
-        for _ in cycle([0]*300):
+        for _ in gen.loop():
             for length in lengths:
                 for strat in strategies:
                     yield { k:v for k,v in gen.chunks(islice(strat,length*2), 2) }
@@ -190,7 +211,7 @@ class easy_street:
         strategies = list(gen.chain(product(strategies, repeat=len(strategies))))
         lengths = cycle(list(range(0, 21)))
 
-        for _ in cycle([0]*300):
+        for _ in gen.loop():
             for length in lengths:
                 for strat in strategies:
                     yield {i for i in islice(strat, length)}
@@ -211,30 +232,28 @@ class easy_street:
             for strat in gen.chain(product(strategies, repeat=len(strategies))):
                 yield next(strat)
 
-from multiprocessing import Process, Queue
-from time import sleep
-
 def background_strategy(strats, q):
     renice(20) # maximize niceness
-    if hasattr(os, 'cpu_count'):
-        cpu_count = os.cpu_count()
-        if cpu_count > 1:
-            pin_to_cpu(randint(1, cpu_count-1))
+    if not hardware.single_core:
+        pin_to_cpu(randint(1, hardware.cpu_count-1)) ###MP randint might be slow, for RR just cycle or % cpu_count
     q_put = q.put
     for strat in cycle(strats):
         q_put(strat.example())
 
-from graphdb import GraphDB
-
 def background_manager(child_queues, q):
-    db = GraphDB('/tmp/fuzz.db')
+    db = GraphDB(db_path('test_inputs.db'))
     for o in db.list_objects():
         q.put(o[-1])
+    db_store_item = db.store_item
+    q_put = q.put
     for cq in cycle(child_queues):
         if cq.full():
-            item = cq.get()
-            db.store_item(item)
-            q.put(item)
+            ###MP pull out cq.get and db.store_item to save some attr resolutions? inside of a cycle loop so it might be a gain
+            item = cq.get() ### LOAD
+            db_store_item(item) ### CACHE STORE
+            q_put(item) ### STORE
+        else:
+            sleep(0.0001)
 
 def multiprocess_garbage():
     basics = (
@@ -260,14 +279,9 @@ def multiprocess_garbage():
 
     strats = basics + lists + tuples + sets + dictionaries
 
-    cpu_count = os.cpu_count()
+    # add logic here that plays on `if hardware.single_core:` to set up single core stuff cleanly
 
-    if cpu_count > 2:
-        cores_used_for_generation = cpu_count - 2
-    else:
-        cores_used_for_generation = 1
-
-
+    cores_used_for_generation = hardware.cpu_count - 2 if hardware.cpu_count > 2 else 1
 
     jobs = cycle([[] for _ in range(cores_used_for_generation)])
 
@@ -275,9 +289,6 @@ def multiprocess_garbage():
         next(jobs).append(s)
 
     jobs = [(next(jobs), Queue(1)) for _ in range(cores_used_for_generation)]
-
-
-    #jobs = [(s, Queue(1)) for s in strats]
 
     processes = [
         Process(target=background_strategy, args=j)
@@ -293,14 +304,17 @@ def multiprocess_garbage():
 
     try:
         fast_alternative = easy_street.garbage()
+        gather_queue_full = gather_queue.full
+        gather_queue_get = gather_queue.get
+        fast_alternative_next = getattr(fast_alternative, ('next' if hasattr(fast_alternative, 'next') else '__next__'))
         for _ in gen.loop():  # loop forever
-            if gather_queue.full(): # if the queue is full, yield the value
-                yield gather_queue.get()
+            if gather_queue_full(): # if the queue is full, yield the value
+                yield gather_queue_get()
             else:
                 for _ in range(10): # dont waste time looking for a full queue, be productive while you wait
                     yield next(fast_alternative)
     except (KeyboardInterrupt, SystemExit, GeneratorExit, StopIteration):
-        gather_process.terminate()
+        gather_process.terminate() ###MP  isn't this redundant with same sequence in finally?
         gather_process.join()
         for p in processes:
             p.terminate()
@@ -313,18 +327,16 @@ def multiprocess_garbage():
             p.join()
 
 
-class MaxExecutionTime(Exception):
+class MaxExecutionTimeError(Exception):
     pass
 
 class max_execution_time:
     def signal_handler(self, signum, frame):
         raise self.ex_type('operation timed out')
 
-    def __init__(self, seconds, ex_type=MaxExecutionTime):
+    def __init__(self, seconds, ex_type=MaxExecutionTimeError):
         #print('setting timeout for {} seconds'.format(seconds))
-        if seconds < 1:
-            seconds = 1
-        self.seconds = seconds
+        self.seconds = 1 if seconds < 1 else seconds
         self.ex_type = ex_type
 
     def __enter__(self):
@@ -332,12 +344,12 @@ class max_execution_time:
         signal.alarm(self.seconds)
 
     def __exit__(self, *a):
-        signal.alarm(0)
+        signal.alarm(0) ###MP which signal is it? MAGIC NUMBERS, this is why signals have const'ed names
 
 
-def hashable_strategy(s):
-    """ returns true if the input is a hash-able hypothesis strategy """
-    assert hasattr(s, 'example'), 'hashable_strategy needs a strategy argument'
+def hashable_strategy(s):   ###MP predicates are nice to indicate with <is_condition> or ? if you're weird enough
+    """ Predicate stating a hash-able hypothesis strategy """
+    assert hasattr(s, 'example'), 'hashable_strategy needs a strategy argument'   ###MP strategies are marked up with attributes not types/base class?
     try:
         for i in range(10):
             sample = s.example()
@@ -353,9 +365,7 @@ def replace_strategy_repr(strat, new_repr):
     class custom_repr_strategy(type(strat)):
         __repr__ = new_repr
         __str__ = new_repr
-    return custom_repr_strategy(
-        strategies=strat.original_strategies
-    )
+    return custom_repr_strategy(strategies=strat.original_strategies)
 
 def build_garbage_strategy():
     ''' builds battle_tested's primary strategy '''
@@ -423,7 +433,7 @@ class storage():
             except:
                 pass
         try:
-            garbage_filler()
+            garbage_filler()    ###MP block to read from a queue instead of try/except pass?
         except:
             pass
 
@@ -435,8 +445,8 @@ class storage():
 
 try:
     storage.test_inputs.append('waffles') # easter egg :)
-    for i in islice(easy_street.garbage(), 32):
-        storage.test_inputs.append(i)
+    for i in islice(easy_street.garbage(), 32): ### Why append fixed number of entries dynamically?
+        storage.test_inputs.append(i)           ### preallocate, do a copy in one move?
 except Exception as e:
     pass
 
@@ -450,13 +460,13 @@ class io_example(object):
     def __repr__(self):
         return '{} -> {}'.format(self.input,self.output)
     def __str__(self):
-        return '{} -> {}'.format(self.input,self.output)
+        return '{} -> {}'.format(self.input,self.output)  ### why not pull value of __repr__? .format cant be cheap, it's parsing and interpolation
     def __hash__(self):
         return hash('io_example') + hash(self.__repr__())
     def __eq__(self, target):
         return hasattr(target, '__hash__') and self.__hash__() == target.__hash__()
 
-class suppress():
+class suppress():   ###MP dead code?  i dont see it referenced anywhere?
     """ suppress exceptions coming from certain code blocks """
     def __init__(self, *exceptions):
         self._exceptions = exceptions
@@ -513,7 +523,7 @@ class PrettyTuple(tuple):
 
 class tb_controls():
     old_excepthook = sys.excepthook
-    no_tracebacklimit_on_sys='tracebacklimit' not in dir(sys)
+    no_tracebacklimit_on_sys = 'tracebacklimit' not in dir(sys)
     old_tracebacklimit = (sys.tracebacklimit if 'tracebacklimit' in dir(sys) else None)
     traceback_disabled = False
 
@@ -551,17 +561,17 @@ def traceback_file_lines(trace_text=None):
             traceback_steps(traceback.format_exc())
     """
     # split the text into traceback steps
-    return [i for i in trace_text.splitlines() if i.startswith('  File "') and '", line' in i]
+    return [i for i in trace_text.splitlines() if i.startswith('  File "') and '", line' in i] ###MP extract out the condition for readability?
 
 def traceback_steps(trace_text=None):
     """ this generates the steps in a traceback
         usage:
             traceback_steps(traceback.format_exc())
     """
-    if trace_text == None:
+    if trace_text == None:   ### is None?
         trace_text = traceback.format_exc()
     # get rid of the first line with traceback
-    trace_text = ('\n'.join(trace_text.splitlines()[1:-1]))
+    trace_text = ('\n'.join(trace_text.splitlines()[1:-1]))  ### split text to rejoin without first and last?  why not just slice the middle out?
     # split the text into traceback steps
     file_lines = [i for i in trace_text.splitlines() if '", line' in i and i.startswith('  File "') ]
     # build the output
@@ -569,7 +579,7 @@ def traceback_steps(trace_text=None):
     for i in trace_text.splitlines():
         if i in file_lines:
             if len(out):
-                yield '\n'.join(out)
+                yield '\n'.join(out)   ###MP why split then rejoin later again?
             out = [i]
         else:
             out.append(i)
@@ -602,7 +612,7 @@ Breakpoint: {break_path:} - line {break_line_number:}""".format(
         err_msg=err_msg,
         break_path=break_path,
         break_line_number=break_line_number
-    )
+    )   ###MP put the fields in a dict, let format unpack it into the right fields
 
     try:
         with open(break_path) as f:
@@ -663,8 +673,8 @@ class generators(object):
 
     @staticmethod
     @started
-    def counter():
-        "generator that holds a sum"
+    def counter():  ###MP why does a counter need to be a generator?
+        """generator that holds a sum"""
         c = 0
         while 1:
             i = yield c
@@ -699,7 +709,7 @@ class generators(object):
             yield time()-start < seconds
 
     @staticmethod
-    def chunks(itr, size):
+    def chunks(itr, size):      ###MP isn't this a copy of stuff from generators?
         """ yields a windowed chunk of a given size """
         out = deque(maxlen=size)
         for i in itr:
@@ -709,7 +719,7 @@ class generators(object):
                 out.clear()
 
     @staticmethod
-    def chain(*a):
+    def chain(*a):      ###MP isn't this a copy of stuff from generators?
         """itertools.chain, just better"""
         for g in a:
             if hasattr(g, '__iter__'):
@@ -740,12 +750,12 @@ class generators(object):
         yield iterable
 
 
-class FuzzTimeout(BaseException):
+class FuzzTimeoutError(BaseException):
     pass
 
 from threading import Timer
 
-class IntervalTimer(object):
+class IntervalTimer(object):    ###MP some classes are explicitly inheriting from object, others are not. Inconsistent
     """ run functions on intervals in the background
         by: Cody Kochmann
     """
@@ -773,9 +783,11 @@ class IntervalTimer(object):
     def stop(self):
         self.stopped = True
         self.running = False
+
         try:
             self.thread.cancel()
         except AttributeError: pass
+
         try:
             self.restart_thread.cancel()
         except AttributeError: pass
@@ -785,7 +797,7 @@ def run_silently(fn):
     """ runs a function silently with no stdout """
     stdout_holder = sys.stdout
     sys.stdout = StringIO()
-    fn()
+    _ = fn()    ### explicit is better than implicit
     sys.stdout = stdout_holder
 
 class ipython_tools(object):
@@ -799,13 +811,14 @@ class ipython_tools(object):
 
     @staticmethod
     def silence_traceback():
-        'silences ipythons verbose debugging temporarily'
+        """ silences ipythons verbose debugging temporarily """
         if ipython_tools.detected:
             # this hijacks stdout because there is a print in ipython.magic
             run_silently(lambda:ipython_tools.magic("xmode Plain"))
+
     @staticmethod
     def verbose_traceback():
-        're-enables ipythons verbose tracebacks'
+        """ re-enables ipythons verbose tracebacks """
         if ipython_tools.detected:
             ipython_tools.magic("xmode Verbose")
 
@@ -830,7 +843,7 @@ def function_arg_count(fn):
                 if not our_specific_type_error: # if you find something
                     number_of_args_that_work.append(i)
                 pass
-            except Exception as ex:
+            except Exception:
                 #number_of_args_that_work.append(i)
                 pass
             else:
@@ -1290,7 +1303,7 @@ Parameters:
             #    exit('got {} args? {}'.format(len(arg_list),next(test_variables)))
             # unpack the arguments
             if not fuzz.has_time:
-                raise FuzzTimeout()
+                raise FuzzTimeoutError()
             display_stats.count += 1
             try:
                 with max_execution_time(int(display_stats.remaining)):
@@ -1325,7 +1338,7 @@ Parameters:
                     '''
                 except:
                     pass
-            except MaxExecutionTime:
+            except MaxExecutionTimeError:
                 pass
             except fuzz.allow as ex:
                 pass
@@ -1393,7 +1406,7 @@ Parameters:
                 max_tests -= 1
                 if max_tests <= 0:
                     break
-        except FuzzTimeout:
+        except FuzzTimeoutError:
             pass
         except KeyboardInterrupt:
             if not quiet:
