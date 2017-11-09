@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
-# @Last Modified 2017-11-08
-# @Last Modified time: 2017-11-08 15:11:31
+# @Last Modified 2017-11-09
+# @Last Modified time: 2017-11-09 17:06:47
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -75,6 +75,10 @@ class float(float): # this patches float.__repr__ to work correctly
         else:
             return 'float("{}")'.format(builtins.float.__repr__(self))
 
+class complex(complex): # this patches float.__repr__ to work correctly
+    def __repr__(self):
+        return 'complex("{}")'.format(builtins.complex.__repr__(self))
+
 def compilable(src):
     try:
         compile(src, 'waffles', 'exec')
@@ -86,6 +90,15 @@ def compilable(src):
 def runnable(src):
     try:
         eval(compile(src, 'waffles', 'exec'))
+    except Exception as e:
+        #logging.warning(repr(e))
+        return False
+    else:
+        return True
+
+def runs_fine(src):
+    try:
+        eval(src)
     except:
         return False
     else:
@@ -310,15 +323,14 @@ def background_strategy(strats, q):
 
 def background_manager(child_queues, q):
     db = GraphDB(db_path('test_inputs.db'))
-    for o in db.list_objects():
-        q.put(o[-1])
-    db_store_item = db.store_item
+    for o in db:
+        q.put(o)
     q_put = q.put
     for cq in cycle(child_queues):
         if cq.full():
             ###MP pull out cq.get and db.store_item to save some attr resolutions? inside of a cycle loop so it might be a gain
             item = cq.get() ### LOAD
-            db_store_item(item) ### CACHE STORE
+            db[item] ### CACHE STORE
             q_put(item) ### STORE
         else:
             sleep(0.0001)
@@ -330,13 +342,19 @@ def multiprocess_garbage():
         st.characters(),
         st.complex_numbers(),
         st.floats(),
+        st.uuids(),
         st.fractions(),
         st.integers(),
+        st.decimals(),
+        st.dates(),
+        st.datetimes(),
+        st.dates().map(str),
+        st.datetimes().map(str),
         st.none(),
         st.text(),
-        st.uuids(),
         st.dictionaries(keys=st.text(), values=st.text())
     )
+
 
     hashables = tuple(s for s in basics if hashable_strategy(s))
 
@@ -1139,7 +1157,7 @@ Parameters:
             self.successful_io = successful_io
             self.function = function
 
-            self.unittest = self._generate_unit_test()
+            self.unittest = attempt(self._generate_unit_test)
 
             self._fields = 'successful_input_types', 'crash_input_types', 'iffy_input_types', 'output_types', 'exception_types', 'unique_crashes', 'successful_io'
 
@@ -1151,23 +1169,28 @@ Parameters:
                     ii = '{}{}'.format('\n'*int(new_lines_in_repr/2), i)
                 else:
                     ii = i
-                table.add_row((ii, getattr(self,i)))
+                if i == 'successful_io':
+                    table.add_row((ii, repr(getattr(self,i))[7:-2]))
+                else:
+                    table.add_row((ii, getattr(self,i)))
             table.align='l'
             return '\n'.join(table.get_string().splitlines()[2:])
 
         def _generate_unit_test(self):
             ''' give this a function to fuzz and it will spit out a unittest file '''
-
             # negative tests
             negative_tests = deque()
             for i in self.unique_crashes:
-                logging.warning(repr(i))
+                #logging.warning(repr(i))
                 invocation_code = '{}{}'.format(self.function.__name__, repr(i.args))
-                if runnable(invocation_code):
-                    logging.warning(invocation_code)
+                tmp='def {}(*a,**k):pass\n'.format(self.function.__name__)+invocation_code
+                if runnable(tmp) and compilable(tmp):
+                    #logging.warning(invocation_code)
                     test_name = 'raises_{}'.format(i.err_type.__name__)
                     negative_tests.append(unittest_builder.raises_test(test_name, invocation_code, i.err_type))
-
+                #else:
+                #    logging.warning('not runnable')
+                #    logging.warning(repr(invocation_code))
             # positive tests
             positive_tests = deque()
             for c, io_object in enumerate(self.successful_io):
@@ -1176,17 +1199,29 @@ Parameters:
                     lambda:tuple(float(i) if type(i)==builtins.float else i for i in io_object.output) ,
                     default_output=io_object.output
                 )
+                io_object.input = tuple(complex(i) if type(i)==builtins.complex else i for i in io_object.input)
+                io_object.output = attempt(
+                    lambda:tuple(complex(i) if type(i)==builtins.complex else i for i in io_object.output) ,
+                    default_output=io_object.output
+                )
+                if type(io_object.output) == builtins.complex:
+                    io_object.output = complex(io_object.output)
+                if type(io_object.output) == builtins.float:
+                    io_object.output = float(io_object.output)
                 invocation_code = '{}{}'.format(self.function.__name__, repr(io_object.input))
-                if runnable(invocation_code):
-                    positive_tests.append((invocation_code, io_object.output))
+                tmp='def {}(*a,**k):pass\n'.format(self.function.__name__)+invocation_code
+                if runnable(tmp) and compilable(tmp):
+                    if all(runs_fine(repr(i)) for i in (io_object.input, io_object.output)):
+                        positive_tests.append((invocation_code, io_object.output))
             positive_tests = [
                 unittest_builder.equal_test('equals_{}'.format(i+1), *v)
                 for i, v in enumerate(positive_tests)
             ]
 
-            print(negative_tests)
-            test_functions = sorted(negative_tests.union(positive_tests))
-            print(test_functions)
+            #print(negative_tests)
+            #print(positive_tests)
+            test_functions = sorted(gen.chain(negative_tests,positive_tests))
+            #print(test_functions)
 
             return unittest_builder.test_body(self.function, ''.join(sorted(test_functions)))
 
@@ -1409,7 +1444,7 @@ Parameters:
         fn_info.fuzz_time = time()
         fn_info.fuzz_id = len(storage.results.keys())
         # stores examples that succeed and return something other than None
-        fn_info.successful_io = deque(maxlen=512)
+        fn_info.successful_io = deque()
         # stores examples that return None
         fn_info.none_successful_io = deque(maxlen=512)
 
@@ -1556,8 +1591,8 @@ Parameters:
 
             # merge the io maps
             for i in fn_info.none_successful_io:
-                if len(fn_info.successful_io)<fn_info.successful_io.maxlen:
-                    fn_info.successful_io.append(i)
+                #if len(fn_info.successful_io)<fn_info.successful_io.maxlen:
+                fn_info.successful_io.append(i)
             # remove io map with None examples
             del fn_info.none_successful_io
 
