@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified 2017-11-09
-# @Last Modified time: 2017-11-09 17:06:47
+# @Last Modified time: 2017-11-11 10:25:19
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -80,6 +80,10 @@ class complex(complex): # this patches float.__repr__ to work correctly
         return 'complex("{}")'.format(builtins.complex.__repr__(self))
 
 def compilable(src):
+    #return attempt(
+    #    lambda:(compile(src, 'waffles', 'exec'), True)[1] ,
+    #    False
+    #)
     try:
         compile(src, 'waffles', 'exec')
     except:
@@ -88,6 +92,10 @@ def compilable(src):
         return True
 
 def runnable(src):
+    #return attempt(
+    #    lambda:(eval(compile(src, 'waffles', 'exec')), True)[1] ,
+    #    False
+    #)
     try:
         eval(compile(src, 'waffles', 'exec'))
     except Exception as e:
@@ -97,12 +105,23 @@ def runnable(src):
         return True
 
 def runs_fine(src):
+    #return attempt(
+    #    lambda:(eval(src), True)[1] ,
+    #    False
+    #)
     try:
         eval(src)
     except:
         return False
     else:
         return True
+
+def valid_repr(o):
+    ''' returns true if the object has a valid repr '''
+    return attempt(
+        lambda: (eval(repr(o)) == o) or (eval(repr(o)) is o),
+        False
+    )
 
 class unittest_builder(object):
     @staticmethod
@@ -1178,13 +1197,17 @@ Parameters:
 
         def _generate_unit_test(self):
             ''' give this a function to fuzz and it will spit out a unittest file '''
+
+            # I know the code in this function is a little hateful, its brand new 
+            # and I'll clean it up as soon as I'm certain it is where it needs to be
+            
             # negative tests
             negative_tests = deque()
             for i in self.unique_crashes:
                 #logging.warning(repr(i))
                 invocation_code = '{}{}'.format(self.function.__name__, repr(i.args))
                 tmp='def {}(*a,**k):pass\n'.format(self.function.__name__)+invocation_code
-                if runnable(tmp) and compilable(tmp):
+                if runnable(tmp) and compilable(tmp) and valid_repr(i.args):
                     #logging.warning(invocation_code)
                     test_name = 'raises_{}'.format(i.err_type.__name__)
                     negative_tests.append(unittest_builder.raises_test(test_name, invocation_code, i.err_type))
@@ -1210,7 +1233,7 @@ Parameters:
                     io_object.output = float(io_object.output)
                 invocation_code = '{}{}'.format(self.function.__name__, repr(io_object.input))
                 tmp='def {}(*a,**k):pass\n'.format(self.function.__name__)+invocation_code
-                if runnable(tmp) and compilable(tmp):
+                if runnable(tmp) and compilable(tmp) and valid_repr(io_object.input) and valid_repr(io_object.output):
                     if all(runs_fine(repr(i)) for i in (io_object.input, io_object.output)):
                         positive_tests.append((invocation_code, io_object.output))
             positive_tests = [
@@ -1220,10 +1243,12 @@ Parameters:
 
             #print(negative_tests)
             #print(positive_tests)
-            test_functions = sorted(gen.chain(negative_tests,positive_tests))
+            positive_tests = ''.join(sorted(positive_tests))
+            negative_tests = ''.join(sorted(negative_tests))
+            test_functions = negative_tests + positive_tests
             #print(test_functions)
 
-            return unittest_builder.test_body(self.function, ''.join(sorted(test_functions)))
+            return unittest_builder.test_body(self.function, test_functions)
 
 
     @staticmethod
