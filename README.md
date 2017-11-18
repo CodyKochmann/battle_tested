@@ -13,7 +13,7 @@ Python allows you to do pretty much whatever you want. This is a good thing for 
 
 For example, the image below shows just how much is brought to light about a piece of code without needing to read a textbook's worth of documentation (which almost never exists) just to learn about the full behavior of a single function.
 
-![fuzz test questions](https://raw.githubusercontent.com/CodyKochmann/battle_tested/master/fuzz_test_questions.png)
+![fuzz test questions](https://bit.ly/bt_readme_example)
 
 ## iPython Demo
 
