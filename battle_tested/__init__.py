@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified 2017-11-09
-# @Last Modified time: 2017-11-11 10:25:19
+# @Last Modified time: 2017-11-18 11:43:10
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -80,41 +80,22 @@ class complex(complex): # this patches float.__repr__ to work correctly
         return 'complex("{}")'.format(builtins.complex.__repr__(self))
 
 def compilable(src):
-    #return attempt(
-    #    lambda:(compile(src, 'waffles', 'exec'), True)[1] ,
-    #    False
-    #)
-    try:
-        compile(src, 'waffles', 'exec')
-    except:
-        return False
-    else:
-        return True
+    return attempt(
+        lambda:(compile(src, 'waffles', 'exec'), True)[1] ,
+        False
+    )
 
 def runnable(src):
-    #return attempt(
-    #    lambda:(eval(compile(src, 'waffles', 'exec')), True)[1] ,
-    #    False
-    #)
-    try:
-        eval(compile(src, 'waffles', 'exec'))
-    except Exception as e:
-        #logging.warning(repr(e))
-        return False
-    else:
-        return True
+    return attempt(
+        lambda:(eval(compile(src, 'waffles', 'exec')), True)[1] ,
+        False
+    )
 
 def runs_fine(src):
-    #return attempt(
-    #    lambda:(eval(src), True)[1] ,
-    #    False
-    #)
-    try:
-        eval(src)
-    except:
-        return False
-    else:
-        return True
+    return attempt(
+        lambda:(eval(src), True)[1] ,
+        False
+    )
 
 def valid_repr(o):
     ''' returns true if the object has a valid repr '''
@@ -333,25 +314,30 @@ class easy_street:
                 yield next(strat)
 
 def background_strategy(strats, q):
+    target_core = q.get()
     renice(20) # maximize niceness
     if not hardware.single_core:
-        pin_to_cpu(randint(1, hardware.cpu_count-1)) ###MP randint might be slow, for RR just cycle or % cpu_count
+        pin_to_cpu(target_core)
     q_put = q.put
     for strat in cycle(strats):
-        q_put(strat.example())
-
+        try:
+            q_put(strat.example())
+        except:
+            pass
 def background_manager(child_queues, q):
+    if not hardware.single_core:
+        pin_to_cpu(1)
+    renice(20)
     db = GraphDB(db_path('test_inputs.db'))
-    for o in db:
-        q.put(o)
     q_put = q.put
+    for o in db:
+        q_put(o)
     for cq in cycle(child_queues):
-        if cq.full():
-            ###MP pull out cq.get and db.store_item to save some attr resolutions? inside of a cycle loop so it might be a gain
-            item = cq.get() ### LOAD
-            db[item] ### CACHE STORE
-            q_put(item) ### STORE
-        else:
+        try:
+            item = cq.get_nowait()
+            db[item]
+            q_put(item)
+        except:
             sleep(0.0001)
 
 def multiprocess_garbage():
@@ -386,14 +372,22 @@ def multiprocess_garbage():
 
     # add logic here that plays on `if hardware.single_core:` to set up single core stuff cleanly
 
+    # if more than two cores, use special core logic
     cores_used_for_generation = hardware.cpu_count - 2 if hardware.cpu_count > 2 else 1
+
+    # specify the cores for each process, master has 0, collector has 1
+    specified_cores = cycle(1) if cores_used_for_generation==1 else cycle(i+2 for i in range(cores_used_for_generation+1))
 
     jobs = cycle([[] for _ in range(cores_used_for_generation)])
 
     for s in strats:
         next(jobs).append(s)
 
-    jobs = [(next(jobs), Queue(1)) for _ in range(cores_used_for_generation)]
+    jobs = [(next(jobs), Queue(4)) for _ in range(cores_used_for_generation)]
+
+    # add specific core to each job's queue
+    for job, q in jobs:
+        q.put(next(specified_cores))
 
     processes = [
         Process(target=background_strategy, args=j)
@@ -403,21 +397,25 @@ def multiprocess_garbage():
     for p in processes:
         p.start()
 
-    gather_queue = Queue(1)
+    gather_queue = Queue(16)
     gather_process = Process(target=background_manager, args=([q for _, q in jobs], gather_queue))
     gather_process.start()
 
     try:
         fast_alternative = easy_street.garbage()
         gather_queue_full = gather_queue.full
-        gather_queue_get = gather_queue.get
+        gather_queue_get = gather_queue.get_nowait
         fast_alternative_next = getattr(fast_alternative, ('next' if hasattr(fast_alternative, 'next') else '__next__'))
         for _ in gen.loop():  # loop forever
-            if gather_queue_full(): # if the queue is full, yield the value
+            try:
                 yield gather_queue_get()
-            else:
-                for _ in range(10): # dont waste time looking for a full queue, be productive while you wait
-                    yield next(fast_alternative)
+            except:
+                yield fast_alternative_next()
+        '''if gather_queue_full(): # if the queue is full, yield the value
+            yield gather_queue_get()
+        else:
+            for _ in range(4): # dont waste time looking for a full queue, be productive while you wait
+                yield next(fast_alternative)'''
     except (KeyboardInterrupt, SystemExit, GeneratorExit, StopIteration):
         gather_process.terminate() ###MP  isn't this redundant with same sequence in finally?
         gather_process.join()
@@ -1006,7 +1004,7 @@ Parameters:
 
 """
 
-    def __init__(self, seconds=2, max_tests=1000000, keep_testing=True, verbose=False, quiet=False, allow=(), strategy=garbage, **kwargs):
+    def __init__(self, seconds=6, max_tests=1000000, keep_testing=True, verbose=False, quiet=False, allow=(), strategy=garbage, **kwargs):
         """ your general constructor to get things in line """
 
         # this is here if someone decides to use it as battle_tested(function)
@@ -1198,9 +1196,9 @@ Parameters:
         def _generate_unit_test(self):
             ''' give this a function to fuzz and it will spit out a unittest file '''
 
-            # I know the code in this function is a little hateful, its brand new 
+            # I know the code in this function is a little hateful, its brand new
             # and I'll clean it up as soon as I'm certain it is where it needs to be
-            
+
             # negative tests
             negative_tests = deque()
             for i in self.unique_crashes:
@@ -1319,7 +1317,7 @@ Parameters:
                 garbage.close()
 
     @staticmethod
-    def fuzz(fn, seconds=3, max_tests=1000000000, verbose=False, keep_testing=True, quiet=False, allow=(), strategy=garbage):
+    def fuzz(fn, seconds=6, max_tests=1000000000, verbose=False, keep_testing=True, quiet=False, allow=(), strategy=garbage):
         """
 
 fuzz - battle_tested's primary weapon for testing functions.
@@ -1579,9 +1577,10 @@ Parameters:
         fuzz.using_native_garbage = using_native_garbage
 
         # run the test
+        test_gen = battle_tested.generate_examples(args_needed, None if using_native_garbage else strategy)
+        next(test_gen) # start the test generator
         try:
             gc_interval.start()
-            test_gen = battle_tested.generate_examples(args_needed, None if using_native_garbage else strategy)
             for test_args in test_gen:
                 if verbose:
                     try:
@@ -1599,17 +1598,14 @@ Parameters:
             if not quiet:
                 print('  stopping fuzz early...')
         finally:
-            try:
-                test_gen.close()
-            except:
-                pass
+            attempt(test_gen.close)
             display_stats.interval.stop()
             display_stats(False)
             gc_interval.stop()
-            try:
-                fuzz.timestopper.cancel()
-            except:
-                pass
+            attempt(fuzz.timestopper.cancel)
+
+            if not display_stats.quiet:
+                print('compiling results...')
 
             results_dict = storage.results[fn]
             results_dict['iffy_input_types'] = set(i for i in results_dict['crash_input_types'] if i in results_dict['successful_input_types'])
