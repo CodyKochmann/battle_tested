@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
-# @Last Modified 2017-11-09
-# @Last Modified time: 2017-11-18 11:43:10
+# @Last Modified 2018-03-12
+# @Last Modified time: 2018-03-12 17:34:24
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -373,10 +373,18 @@ def multiprocess_garbage():
     # add logic here that plays on `if hardware.single_core:` to set up single core stuff cleanly
 
     # if more than two cores, use special core logic
-    cores_used_for_generation = hardware.cpu_count - 2 if hardware.cpu_count > 2 else 1
-
-    # specify the cores for each process, master has 0, collector has 1
-    specified_cores = cycle(1) if cores_used_for_generation==1 else cycle(i+2 for i in range(cores_used_for_generation+1))
+    # master has 0, collector has 1
+    if hardware.cpu_count > 2: # logic for 3 or more cores
+        cores_used_for_generation = hardware.cpu_count - 2
+        specified_cores = cycle(range(2, hardware.cpu_count))
+    else:
+        cores_used_for_generation = 1
+        if hardware.cpu_count == 2:
+            # dual core has second core do generation
+            specified_cores = cycle([1])
+        else:
+            # single core systems do everything on the same core
+            specified_cores = cycle([0])
 
     jobs = cycle([[] for _ in range(cores_used_for_generation)])
 
