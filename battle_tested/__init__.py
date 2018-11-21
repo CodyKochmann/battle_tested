@@ -525,9 +525,9 @@ def build_garbage_strategy():
 
 garbage = replace_strategy_repr(build_garbage_strategy(), lambda s:'<garbage>')
 
-
 class storage():
     """ where battle_tested stores things """
+    graphs = []
     test_inputs = deque()
     results = {}
 
@@ -1479,6 +1479,9 @@ Parameters:
         # stores examples that return None
         fn_info.none_successful_io = deque(maxlen=512)
 
+        graph = GraphDB()
+        graph(fn).time = fn_info.fuzz_time
+
         gc_interval = IntervalTimer(3, gc)
 
         #@settings(perform_health_check=False, database_file=None, deadline=None, max_examples=max_tests, verbosity=(Verbosity.verbose if verbose else Verbosity.normal))
@@ -1513,9 +1516,16 @@ Parameters:
                 # add the input types to the successful collection
                 if input_types not in storage.results[fn]['successful_input_types']:
                     storage.results[fn]['successful_input_types'].append(input_types)
+
+
                 # add the output type to the output collection
                 storage.results[fn]['output_types'].add(type(out))
                 battle_tested.success_map.add(tuple(type(i) for i in arg_list))
+                
+                graph(repr(fn)).good_input_types = input_types
+                graph(input_types).returned_type = type(out)
+                graph(input_types).sample = io_example(arg_list, out)
+                
                 try:
                     (fn_info.none_successful_io if out is None else fn_info.successful_io).append(io_example(arg_list, out))
                     '''
@@ -1543,6 +1553,9 @@ Parameters:
                 ) else '')
 
                 storage.results[fn]['crash_input_types'].add(tuple(type(i) for i in arg_list))
+                input_types = tuple(type(i) for i in arg_list)
+
+                graph(repr(fn)).crash_input_types = input_types
 
                 if keep_testing:
                     tb_text = traceback_text()
@@ -1555,6 +1568,11 @@ Parameters:
                         arg_types=tuple(type(i) for i in arg_list),
                         trace=str(tb_text)
                     )
+                    graph(input_types).exceptions = ex
+                    graph(ex).traceback = tb_text
+                    graph(ex).message = ex_message
+                    graph(ex).args = arg_list
+
                     storage.results[fn]['exception_types'].add(type(ex))
                 else:
                     # get the step where the code broke
@@ -1614,7 +1632,7 @@ Parameters:
 
             if not display_stats.quiet:
                 print('compiling results...')
-
+            storage.graphs.append(graph)
             results_dict = storage.results[fn]
             results_dict['iffy_input_types'] = set(i for i in results_dict['crash_input_types'] if i in results_dict['successful_input_types'])
 
