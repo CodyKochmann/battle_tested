@@ -89,16 +89,19 @@ def harvest_int_from_bytes(o):
     raise NotImplemented()
 
 def harvest_list_from_bytes(o):
-    raise NotImplemented()
+    yield [i for i in o]
+    yield [bool(i) for i in o]
+    yield [str(i) for i in o]
+    yield [float(i) for i in o]
 
 def harvest_set_from_bytes(o):
-    raise NotImplemented()
+    yield from map(set, harvest_list_from_bytes(o))
 
 def harvest_str_from_bytes(o):
     raise NotImplemented()
 
 def harvest_tuple_from_bytes(o):
-    raise NotImplemented()
+    yield from map(tuple, harvest_list_from_bytes(o))
 
 def harvest_bool_from_complex(o):
     raise NotImplemented()
