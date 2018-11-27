@@ -1,7 +1,56 @@
-import itertools
+import itertools, json, string
+from functools import wraps, partial
+from contextlib import suppress
+from generators import G, chain
+from base64 import b16encode, b32encode, b64encode, b64encode, a85encode
+
+printables = {k:v for k,v in enumerate(string.printable)}
+
+small_int_cyclers = zip(*(itertools.cycle(range(1, i)) for i in range(2, 7)))
+kinda_random_small_int = map(sum, small_int_cyclers)
+kinda_random_medium_int = (a*b for a,b in zip(kinda_random_small_int, kinda_random_small_int))
+kinda_random_big_int = (a*b for a,b in zip(kinda_random_medium_int, kinda_random_medium_int))
+
+encoders = b16encode, b32encode, b64encode, b64encode, a85encode
+
+str_encode_or_ignore = partial(str.encode, errors='ignore')
+
+def hashable(o):
+    with suppress(Exception):
+        hash(o)
+        return True
+    return False
+
+def flipped(fn):
+    '''this decorator allows generators to yield their output and their flipped output'''
+    def flip(o):
+        if isinstance(o, str):
+            return ''.join(reversed(o))
+        elif isinstance(o, bytes):
+            return bytes(bytearray(reversed(o)))
+        elif isinstance(o, (bytearray, list, set, tuple)):
+            return type(o)(reversed(o))
+        else:
+            raise Exception('this wasnt worth flipping: {}'.format(o))
+
+    @wraps(fn)
+    def wrapper(*a, **k):
+        for i in fn(*a, **k):
+            yield i
+            yield flip(i)
+    return wrapper
+
+def map_attempt(fn, iterable):
+    iterable = iter(iterable)
+    still_going = True
+    while still_going:
+        with suppress(Exception):
+            for i in iterable:
+                yield fn(i)
+            still_going = False
 
 def harvest_bool_from_bool(o):
-    yield not o 
+    yield not o
     yield o
 
 def harvest_bytearray_from_bool(o):
@@ -22,6 +71,7 @@ def harvest_float_from_bool(o):
 def harvest_int_from_bool(o):
     raise NotImplemented()
 
+@flipped
 def harvest_list_from_bool(o):
     raise NotImplemented()
 
@@ -55,20 +105,28 @@ def harvest_float_from_bytearray(o):
 def harvest_int_from_bytearray(o):
     raise NotImplemented()
 
+@flipped
 def harvest_list_from_bytearray(o):
-    raise NotImplemented()
+    for x in range(-1, 2):
+        yield [i+x for i in o]
+        yield [(i+x)%2 for i in o]
+        yield [i+x for i in o if i%2]
+        yield [i+x for i in o if not i%2]
 
 def harvest_set_from_bytearray(o):
-    raise NotImplemented()
+    yield from map(set, harvest_list_from_bytearray(o))
 
 def harvest_str_from_bytearray(o):
-    raise NotImplemented()
+    for l in harvest_list_from_bytearray(o):
+        with suppress(Exception):
+            yield ''.join(map(chr, l))
 
 def harvest_tuple_from_bytearray(o):
-    raise NotImplemented()
+    yield from map(tuple, harvest_list_from_bytearray(o))
 
 def harvest_bool_from_bytes(o):
-    raise NotImplemented()
+    for i in o:
+        yield from (x=='1' for x in bin(i)[2:])
 
 def harvest_bytearray_from_bytes(o):
     raise NotImplemented()
@@ -86,8 +144,10 @@ def harvest_float_from_bytes(o):
     raise NotImplemented()
 
 def harvest_int_from_bytes(o):
-    raise NotImplemented()
+    for i in o:
+        yield from harvest_int_from_int(i)
 
+@flipped
 def harvest_list_from_bytes(o):
     yield [i for i in o]
     yield [bool(i) for i in o]
@@ -124,6 +184,7 @@ def harvest_float_from_complex(o):
 def harvest_int_from_complex(o):
     raise NotImplemented()
 
+@flipped
 def harvest_list_from_complex(o):
     raise NotImplemented()
 
@@ -157,6 +218,7 @@ def harvest_float_from_dict(o):
 def harvest_int_from_dict(o):
     raise NotImplemented()
 
+@flipped
 def harvest_list_from_dict(o):
     raise NotImplemented()
 
@@ -190,6 +252,7 @@ def harvest_float_from_float(o):
 def harvest_int_from_float(o):
     raise NotImplemented()
 
+@flipped
 def harvest_list_from_float(o):
     raise NotImplemented()
 
@@ -231,50 +294,104 @@ def harvest_int_from_int(o):
     yield from (i%x for x in range(-10, -1))
     yield from (i%x for x in range(1, 11))
 
+@flipped
 def harvest_list_from_int(o):
-    raise NotImplemented()
+    bin_o = bin(o)[2:]
+    yield list(bin_o)
+    as_bools = [i=='1' for i in bin_o]
+    for i in range(1, len(as_bools)):
+        yield as_bools[:i]
+        yield as_bools[i:]
+        yield [(not x) for x in as_bools[:i]]
+        yield [(not x) for x in as_bools[i:]]
 
 def harvest_set_from_int(o):
-    raise NotImplemented()
+    yield from map(set, harvest_list_from_int(o))
 
 def harvest_str_from_int(o):
-    yield from harvest_str_from_str(bin(i))
+    yield bin(i)
+    yield json.dumps(i)
+    chars = filter(bool, map_attempt(lambda i:(printables[i%len(printables)]), harvest_int_from_int(o)))
+    for l in kinda_random_small_int:
+        out = ''.join(c for _,c in zip(range(l), chars))
+        if out:
+            yield out
+        else:
+            break
 
 def harvest_tuple_from_int(o):
-    raise NotImplemented()
+    for i in harvest_list_from_int(o):
+        yield tuple(i)
+        yield tuple(set(i))
 
 def harvest_bool_from_list(o):
-    raise NotImplemented()
+    as_bools = list(map(bool, o))
+    yield from as_bools
+    for i in as_bools:
+        yield not i
 
 def harvest_bytearray_from_list(o):
-    raise NotImplemented()
+    yield from map(bytearray, harvest_bytes_from_list(o))
 
 def harvest_bytes_from_list(o):
-    raise NotImplemented()
+    yield from map_attempt(str_encode_or_ignore, harvest_str_from_list(o))
 
 def harvest_complex_from_list(o):
     raise NotImplemented()
 
 def harvest_dict_from_list(o):
-    raise NotImplemented()
+    len_o = len(o)
+    o = itertools.cycle(o)
+    for i in range(1, int(len_o*2)):
+        with suppress(Exception):
+            yield {next(o):next(o) for _ in range(i)}
 
 def harvest_float_from_list(o):
-    raise NotImplemented()
+    pipe = iter(harvest_int_from_list(o))
+    for a, b in zip(pipe, pipe):
+        yield a * b
+        if b and a:
+            yield a/b
+            yield b/a
 
 def harvest_int_from_list(o):
-    raise NotImplemented()
+    yield len(o)
+    for fn in [len, int, ord]:
+        yield from map_attempt(fn, o)
+    yield from str_encode_or_ignore(repr(o))
 
+@flipped
 def harvest_list_from_list(o):
-    raise NotImplemented()
+    yield o
+    if o:
+        for i in range(1, int(math.sqrt(len(o)))+1):
+            yield [v for ii,v in enumerate(o) if not ii%i]
+            yield [v for ii,v in enumerate(o) if ii%i]
+        yield [i for i in o if i]
+        yield [i for i in o if not i]
 
 def harvest_set_from_list(o):
-    raise NotImplemented()
+    for l in harvest_list_from_list(o):
+        yield {i for i in l if hashable(i)}
 
 def harvest_str_from_list(o):
-    raise NotImplemented()
+    yield repr(o)
+    for i in o:
+        with suppress(Exception):
+            yield i.decode() if isinstance(i, bytes) else str(i)
+    yield from map(repr, o)
+    for i in o:
+        with suppress(Exception):
+            as_bytes = bytes(i) if isinstance(i, int) else bytes(str(i), encoding='utf-8')
+            for encoder in encoders:
+                yield encoder(as_bytes).decode()
+    for i in o:
+        with suppress(Exception):
+            yield json.dumps(i)
 
 def harvest_tuple_from_list(o):
-    raise NotImplemented()
+    yield from map(tuple, harvest_list_from_list(o))
+    yield from map(tuple, harvest_set_from_list(o))
 
 def harvest_bool_from_set(o):
     raise NotImplemented()
@@ -297,6 +414,7 @@ def harvest_float_from_set(o):
 def harvest_int_from_set(o):
     raise NotImplemented()
 
+@flipped
 def harvest_list_from_set(o):
     raise NotImplemented()
 
@@ -330,6 +448,7 @@ def harvest_float_from_str(o):
 def harvest_int_from_str(o):
     raise NotImplemented()
 
+@flipped
 def harvest_list_from_str(o):
     raise NotImplemented()
 
@@ -337,19 +456,19 @@ def harvest_set_from_str(o):
     raise NotImplemented()
 
 def harvest_str_from_str(o):
-    yield i.upper()
-    yield i.lower()
-    yield i.strip()
+    yield o.upper()
+    yield o.lower()
+    yield o.strip()
     common_chars = ['\n', '"', "'", ' ', '\t', '.', ',', ':']
-    yield from (i.replace(old_char, new_char) for old_char, new_char in itertools.combinations(common_chars, 2) if old_char in i)
-    yield ''.join(x for x in i if x.isnumeric())
-    yield ''.join(x for x in i if not x.isnumeric())
+    yield from (o.replace(old_char, new_char) for old_char, new_char in itertools.combinations(common_chars, 2) if old_char in o)
+    yield ''.join(x for x in o if x.isnumeric())
+    yield ''.join(x for x in o if not x.isnumeric())
 
 def harvest_tuple_from_str(o):
     raise NotImplemented()
 
 def harvest_bool_from_tuple(o):
-    raise NotImplemented()
+    yield from map(bool, o)
 
 def harvest_bytearray_from_tuple(o):
     raise NotImplemented()
@@ -364,11 +483,12 @@ def harvest_dict_from_tuple(o):
     raise NotImplemented()
 
 def harvest_float_from_tuple(o):
-    raise NotImplemented()
+    yield from harvest_float_from_list(list(o))
 
 def harvest_int_from_tuple(o):
-    raise NotImplemented()
+    yield from harvest_int_from_list(list(o))
 
+@flipped
 def harvest_list_from_tuple(o):
     raise NotImplemented()
 
@@ -512,6 +632,16 @@ def mutate(o, output_type):
         more test inputs without needing to rely on random generation '''
     global mutation_map
 
-    for i in mutation_map[type(o), output_type](o):
-        yield i
-        yield from mutation_map[type(i), output_type](o)
+    if isinstance(o, output_type):
+        for i in mutation_map[type(o), output_type](o):
+            yield i
+    else:
+        for i in mutation_map[type(o), output_type](o):
+            yield i
+            yield from mutation_map[type(i), output_type](i)
+
+if __name__ == '__main__':
+    for test in ['hi', 5]:
+        for i,v in enumerate(mutate(test, str)):
+            print(repr(v))
+
