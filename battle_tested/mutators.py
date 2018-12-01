@@ -4,6 +4,9 @@ from contextlib import suppress
 from generators import G, chain
 from base64 import b16encode, b32encode, b64encode, b64encode, a85encode
 
+standard_types = { bool, bytearray, bytes, complex, dict, float, int, list, set, str, tuple }
+standard_defaults = [i() for i in standard_types]
+
 printables = {k:v for k,v in enumerate(string.printable)}
 
 small_int_cyclers = zip(*(itertools.cycle(range(1, i)) for i in range(2, 7)))
@@ -54,47 +57,73 @@ def harvest_bool_from_bool(o):
     yield o
 
 def harvest_bytearray_from_bool(o):
-    raise NotImplemented()
+    yield bytearray(o)
+    yield bytearray(not o)
 
 def harvest_bytes_from_bool(o):
-    raise NotImplemented()
+    yield bytes(o)
+    yield bytes(not o)
 
 def harvest_complex_from_bool(o):
-    raise NotImplemented()
+    yield complex(o)
+    yield complex(not o)
 
 def harvest_dict_from_bool(o):
-    raise NotImplemented()
+    global standard_defaults
+    for i in standard_defaults:
+        yield {o:i}
+        yield {i:o}
+        yield {i:o, o:i}
 
 def harvest_float_from_bool(o):
-    raise NotImplemented()
+    yield float(o)
+    yield float(not o)
 
 def harvest_int_from_bool(o):
-    raise NotImplemented()
+    yield bool(o)
+    yield bool(not o)
 
-@flipped
 def harvest_list_from_bool(o):
-    raise NotImplemented()
+    for i in range(1, 8):
+        yield [o] * i
 
 def harvest_set_from_bool(o):
-    raise NotImplemented()
+    yield {o}
+    yield {not o}
+    yield {o, not o}
 
 def harvest_str_from_bool(o):
-    raise NotImplemented()
+    yield json.dumps(o)
+    yield repr(o)
+    int_o = int(o)
+    yield str(int_o)
+    yield bin(int_o)
+    yield bytes(int_o).decode()
 
 def harvest_tuple_from_bool(o):
-    raise NotImplemented()
+    yield from map(tuple, harvest_list_from_bool(o))
 
 def harvest_bool_from_bytearray(o):
-    raise NotImplemented()
+    for i in harvest_list_from_bytearray(o):
+        if isinstance(i, int):
+            yield from harvest_bool_from_int(i)
 
 def harvest_bytearray_from_bytearray(o):
-    raise NotImplemented()
+    for i in range(1, 9):
+        tmp = o * i
+        yield tmp
+        tmp.reverse()
+        yield tmp
 
 def harvest_bytes_from_bytearray(o):
-    raise NotImplemented()
+    yield from map(bytes, harvest_bytearray_from_bytearray(o))
 
 def harvest_complex_from_bytearray(o):
-    raise NotImplemented()
+    yield from G(harvest_bytearray_from_bytearray(o)
+        ).chain(
+        ).window(2
+        ).map(lambda i:[complex(i[0]), complex(i[1]), complex(*i)]
+        ).chain()
 
 def harvest_dict_from_bytearray(o):
     raise NotImplemented()
@@ -644,4 +673,6 @@ if __name__ == '__main__':
     for test in ['hi', 5]:
         for i,v in enumerate(mutate(test, str)):
             print(repr(v))
+    for i in harvest_complex_from_bytearray(bytearray(b'hi')):
+        print('-', i, type(i))
 
