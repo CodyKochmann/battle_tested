@@ -1,4 +1,9 @@
 # Battle Tested
+
+[![Downloads](https://pepy.tech/badge/battle-tested)](https://pepy.tech/project/battle-tested)
+[![Downloads](https://pepy.tech/badge/battle-tested/month)](https://pepy.tech/project/battle-tested)
+[![Downloads](https://pepy.tech/badge/battle-tested/week)](https://pepy.tech/project/battle-tested)
+
 An automated library that puts functions through hell so in production your code will have already seen worse.
 
 ## How to install it?
