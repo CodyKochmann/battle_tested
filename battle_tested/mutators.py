@@ -24,6 +24,14 @@ def hashable(o):
         return True
     return False
 
+def hashable_or_none(o):
+    '''returns an object if it is hashable or just None'''
+    try:
+        hash(o)
+        return o
+    except:
+        return None
+
 def flipped(fn):
     '''this decorator allows generators to yield their output and their flipped output'''
     def flip(o):
@@ -226,39 +234,48 @@ def harvest_str_from_complex(o):
 def harvest_tuple_from_complex(o):
     raise NotImplemented()
 
+def remutate_dict(o, output_type):
+    for k, v in o.items():
+        yield from mutate(k, output_type)
+        if not isinstance(v, dict): # prevent infinite mutations
+            yield from mutate(v, output_type)
+
 def harvest_bool_from_dict(o):
-    raise NotImplemented()
+    yield from remutate_dict(o, bool)
 
 def harvest_bytearray_from_dict(o):
-    raise NotImplemented()
+    yield from remutate_dict(o, bytearray)
 
 def harvest_bytes_from_dict(o):
-    raise NotImplemented()
+    yield from remutate_dict(o, bytes)
 
 def harvest_complex_from_dict(o):
-    raise NotImplemented()
+    yield from remutate_dict(o, complex)
 
 def harvest_dict_from_dict(o):
-    raise NotImplemented()
+    for key_subset in harvest_list_from_list(list(o.keys())):
+        yield {k:o[k] for k in key_subset}
 
 def harvest_float_from_dict(o):
-    raise NotImplemented()
+    yield from remutate_dict(o, float)
 
 def harvest_int_from_dict(o):
-    raise NotImplemented()
+    yield from remutate_dict(o, int)
 
 @flipped
 def harvest_list_from_dict(o):
-    raise NotImplemented()
-
-def harvest_set_from_dict(o):
-    raise NotImplemented()
-
-def harvest_str_from_dict(o):
-    raise NotImplemented()
+    yield list(o.keys())
+    yield list(o.values())
 
 def harvest_tuple_from_dict(o):
-    raise NotImplemented()
+    yield from map(tuple, harvest_list_from_dict(o))
+
+def harvest_set_from_dict(o):
+    yield set(o.keys())
+    yield from harvest_set_from_list(list(o.values()))
+
+def harvest_str_from_dict(o):
+    yield from remutate_dict(o, bytes)
 
 def harvest_bool_from_float(o):
     raise NotImplemented()
@@ -401,7 +418,10 @@ def harvest_list_from_list(o):
 
 def harvest_set_from_list(o):
     for l in harvest_list_from_list(o):
-        yield {i for i in l if hashable(i)}
+        s = set(map(hashable_or_none, l))
+        yield {i for i in s if i is not None}
+        yield {i for i in s if i}
+        yield s
 
 def harvest_str_from_list(o):
     yield repr(o)
