@@ -52,6 +52,7 @@ def flipped(fn):
     return wrapper
 
 def map_attempt(fn, iterable):
+    ''' this works just like map but filters out crashes '''
     iterable = iter(iterable)
     still_going = True
     while still_going:
