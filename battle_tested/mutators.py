@@ -232,7 +232,7 @@ def harvest_str_from_complex(o):
     raise NotImplemented()
 
 def harvest_tuple_from_complex(o):
-    raise NotImplemented()
+    yield from map(tuple, harvest_list_from_complex(o))
 
 def remutate_dict(o, output_type):
     for k, v in o.items():
@@ -309,7 +309,7 @@ def harvest_str_from_float(o):
     raise NotImplemented()
 
 def harvest_tuple_from_float(o):
-    raise NotImplemented()
+    yield from map(tuple, harvest_list_from_float(o))
 
 def harvest_bool_from_int(o):
     yield o % 2 == 1
@@ -474,10 +474,10 @@ def harvest_str_from_set(o):
     raise NotImplemented()
 
 def harvest_tuple_from_set(o):
-    raise NotImplemented()
+    yield from map(tuple, harvest_list_from_set(o))
 
 def harvest_bool_from_str(o):
-    raise NotImplemented()
+    yield from (bool(ord(ch)%2) for ch in o)
 
 def harvest_bytearray_from_str(o):
     raise NotImplemented()
@@ -489,20 +489,27 @@ def harvest_complex_from_str(o):
     raise NotImplemented()
 
 def harvest_dict_from_str(o):
-    raise NotImplemented()
+    yield {o: None}
+    yield {None: o}
+    yield {o: o}
+    yield {o: {o: None}}
+    yield {o: {o: o}}
+    yield from harvest_dict_from_dict({a:b for a,b in zip(*([iter(o)]*2))})
 
 def harvest_float_from_str(o):
     raise NotImplemented()
 
 def harvest_int_from_str(o):
-    raise NotImplemented()
+    yield from map(ord, o)
 
 @flipped
 def harvest_list_from_str(o):
-    raise NotImplemented()
+    yield from harvest_list_from_list(list(o))
+    yield from harvest_list_from_list(list(map(ord, o)))
 
 def harvest_set_from_str(o):
-    raise NotImplemented()
+    for l in harvest_list_from_str(o):
+        yield from harvest_set_from_list(l)
 
 def harvest_str_from_str(o):
     yield o.upper()
@@ -514,7 +521,7 @@ def harvest_str_from_str(o):
     yield ''.join(x for x in o if not x.isnumeric())
 
 def harvest_tuple_from_str(o):
-    raise NotImplemented()
+    yield from map(tuple, harvest_list_from_str(o))
 
 def harvest_bool_from_tuple(o):
     yield from map(bool, o)
@@ -539,7 +546,7 @@ def harvest_int_from_tuple(o):
 
 @flipped
 def harvest_list_from_tuple(o):
-    raise NotImplemented()
+    yield from harvest_list_from_list(list(o))
 
 def harvest_set_from_tuple(o):
     raise NotImplemented()
@@ -548,7 +555,7 @@ def harvest_str_from_tuple(o):
     raise NotImplemented()
 
 def harvest_tuple_from_tuple(o):
-    raise NotImplemented()
+    yield from map(tuple, harvest_list_from_tuple(o))
 
 
 mutation_map = {
