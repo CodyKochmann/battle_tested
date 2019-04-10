@@ -459,35 +459,35 @@ def harvest_tuple_from_list(o):
     yield from map(tuple, harvest_set_from_list(o))
 
 def harvest_bool_from_set(o):
-    raise NotImplemented()
+    yield from harvest_bool_from_list(list(o))
 
 def harvest_bytearray_from_set(o):
-    raise NotImplemented()
+    yield from harvest_bytearray_from_list(list(o))
 
 def harvest_bytes_from_set(o):
-    raise NotImplemented()
+    yield from harvest_bytes_from_list(list(o))
 
 def harvest_complex_from_set(o):
-    raise NotImplemented()
+    yield from harvest_complex_from_list(list(o))
 
 def harvest_dict_from_set(o):
-    raise NotImplemented()
+    yield from harvest_dict_from_list(list(o))
 
 def harvest_float_from_set(o):
-    raise NotImplemented()
+    yield from harvest_float_from_list(list(o))
 
 def harvest_int_from_set(o):
-    raise NotImplemented()
+    yield from harvest_int_from_list(list(o))
 
 @flipped
 def harvest_list_from_set(o):
-    raise NotImplemented()
+    yield from harvest_list_from_list(list(o))
 
 def harvest_set_from_set(o):
-    raise NotImplemented()
+    yield from harvest_set_from_list(list(o))
 
 def harvest_str_from_set(o):
-    raise NotImplemented()
+    yield from harvest_str_from_list(list(o))
 
 def harvest_tuple_from_set(o):
     yield from map(tuple, harvest_list_from_set(o))
@@ -546,16 +546,16 @@ def harvest_bool_from_tuple(o):
     yield from map(bool, o)
 
 def harvest_bytearray_from_tuple(o):
-    raise NotImplemented()
+    yield from harvest_bytearray_from_list(list(o))
 
 def harvest_bytes_from_tuple(o):
-    raise NotImplemented()
+    yield from harvest_bytes_from_list(list(o))
 
 def harvest_complex_from_tuple(o):
-    raise NotImplemented()
+    yield from harvest_complex_from_list(list(o))
 
 def harvest_dict_from_tuple(o):
-    raise NotImplemented()
+    yield from harvest_dict_from_list(list(o))
 
 def harvest_float_from_tuple(o):
     yield from harvest_float_from_list(list(o))
@@ -568,10 +568,10 @@ def harvest_list_from_tuple(o):
     yield from harvest_list_from_list(list(o))
 
 def harvest_set_from_tuple(o):
-    raise NotImplemented()
+    yield from harvest_set_from_list(list(o))
 
 def harvest_str_from_tuple(o):
-    raise NotImplemented()
+    yield from harvest_str_from_list(list(o))
 
 def harvest_tuple_from_tuple(o):
     yield from map(tuple, harvest_list_from_tuple(o))
