@@ -341,7 +341,12 @@ def harvest_dict_from_int(o):
     raise NotImplemented()
 
 def harvest_float_from_int(o):
-    yield from map(operator.mul, window(harvest_int_from_int(o)))
+    for a, b in window(harvest_int_from_int(o), 2):
+        if a != 0:
+            yield b / a
+        if b != 0:
+            yield a / b
+        yield a * b
 
 def harvest_int_from_int(o):
     yield from (i+x for x in range(-10, 11))
@@ -508,7 +513,10 @@ def harvest_dict_from_str(o):
     yield from harvest_dict_from_dict({a:b for a,b in zip(*([iter(o)]*2))})
 
 def harvest_float_from_str(o):
-    raise NotImplemented()
+    for a, b in window(filter(bool, map(ord, o)), 2):
+        yield a * b
+        yield a / b
+        yield b / a
 
 def harvest_int_from_str(o):
     yield from map(ord, o)
