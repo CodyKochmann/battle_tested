@@ -1,6 +1,7 @@
-import itertools, json, string, sys
+import itertools, json, string, sys, math
 from functools import wraps, partial
 from contextlib import suppress
+from collections import deque, defaultdict
 import operator
 from base64 import b16encode, b32encode, b64encode, b64encode, a85encode
 
@@ -21,6 +22,22 @@ kinda_random_big_int = (a*b for a,b in zip(kinda_random_medium_int, kinda_random
 encoders = b16encode, b32encode, b64encode, b64encode, a85encode
 
 str_encode_or_ignore = partial(str.encode, errors='ignore')
+
+def cached_uniq(pipe):
+    cache = defaultdict(partial(deque, maxlen=4))
+    for i in pipe:
+        if i not in cache[type(i)]:
+            cache[type(i)].append(i)
+            yield i
+def uniq(pipe):
+    prev = next(pipe)
+    for i in pipe:
+        if type(i) == type(prev) and i == prev:
+            continue
+        else:
+            yield i
+            prev = i
+
 
 def hashable(o):
     with suppress(Exception):
@@ -289,7 +306,8 @@ def harvest_str_from_dict(o):
     yield from remutate_dict(o, bytes)
 
 def harvest_bool_from_float(o):
-    raise NotImplemented()
+    for i in harvest_int_from_float(o):
+        yield from harvest_bool_from_int(i)
 
 def harvest_bytearray_from_float(o):
     raise NotImplemented()
@@ -304,20 +322,36 @@ def harvest_dict_from_float(o):
     raise NotImplemented()
 
 def harvest_float_from_float(o):
-    raise NotImplemented()
+    for i in harvest_int_from_float(o):
+        yield o * i
+        yield o + i
+        yield o - i
+        yield i - o
 
 def harvest_int_from_float(o):
-    raise NotImplemented()
+    yield from chain(map(harvest_int_from_int, o.as_integer_ratio()))
 
-@flipped
 def harvest_list_from_float(o):
-    raise NotImplemented()
+    a, b = o.as_integer_ratio()
+    yield [o] * a
+    yield [o] * a
+    yield [a] * b
+    yield [b] * a
+    yield [([o] * a)] * b
+    yield [([o] * b)] * a
+    yield [([o*a] * a)] * b
+    yield [([o*a] * b)] * a
+    yield [([o*b] * a)] * b
+    yield [([o*b] * b)] * a
 
 def harvest_set_from_float(o):
-    raise NotImplemented()
+    for l in harvest_list_from_float(o):
+        yield from harvest_set_from_list(o)
 
 def harvest_str_from_float(o):
-    raise NotImplemented()
+    yield str(o)
+    yield repr(o)
+    yield from map(chr, harvest_int_from_float(o))
 
 def harvest_tuple_from_float(o):
     yield from map(tuple, harvest_list_from_float(o))
@@ -338,7 +372,8 @@ def harvest_complex_from_int(o):
     raise NotImplemented()
 
 def harvest_dict_from_int(o):
-    raise NotImplemented()
+    for k, v in zip(harvest_str_from_int(o), harvest_int_from_int(o)):
+        yield {k:v for _,k,v in zip(range(min(16, max(1, v))), harvest_str_from_str(k), harvest_int_from_int(v))}
 
 def harvest_float_from_int(o):
     for a, b in window(harvest_int_from_int(o), 2):
@@ -707,13 +742,16 @@ def mutate(o, output_type):
         more test inputs without needing to rely on random generation '''
     global mutation_map
 
-    if isinstance(o, output_type):
-        for i in mutation_map[type(o), output_type](o):
-            yield i
-    else:
-        for i in mutation_map[type(o), output_type](o):
-            yield i
-            yield from mutation_map[type(i), output_type](i)
+    def mutator():
+        if isinstance(o, output_type):
+            for i in mutation_map[type(o), output_type](o):
+                yield i
+        else:
+            for i in mutation_map[type(o), output_type](o):
+                yield i
+                yield from mutation_map[type(i), output_type](i)
+
+    return cached_uniq(mutator())
 
 def warn_about_duplicates(pipe):
     last = None
@@ -735,5 +773,8 @@ if __name__ == '__main__':
         print('-', i, type(i))
     for test in ['hi', 5]:
         for i,v in enumerate(warn_about_duplicates(mutate(test, str))):
+            print(repr(v))
+    for test in ['hi', 5]:
+        for i,v in enumerate(warn_about_duplicates(mutate(test, dict))):
             print(repr(v))
 
