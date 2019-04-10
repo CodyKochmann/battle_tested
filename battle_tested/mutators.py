@@ -1,8 +1,12 @@
-import itertools, json, string
+import itertools, json, string, sys
 from functools import wraps, partial
 from contextlib import suppress
-from generators import G, chain
+import operator
 from base64 import b16encode, b32encode, b64encode, b64encode, a85encode
+
+from generators import G, chain, window
+
+eprint = partial(print, file=sys.stderr)
 
 standard_types = { bool, bytearray, bytes, complex, dict, float, int, list, set, str, tuple }
 standard_defaults = [i() for i in standard_types]
@@ -135,13 +139,19 @@ def harvest_complex_from_bytearray(o):
         ).chain()
 
 def harvest_dict_from_bytearray(o):
-    raise NotImplemented()
+    yield from harvest_dict_from_list(list(o))
+    yield from harvest_dict_from_list(list(map(chr, o)))
 
 def harvest_float_from_bytearray(o):
-    raise NotImplemented()
+    for i in harvest_bytearray_from_bytearray(o):
+        yield float.fromhex(o.hex())
+        for ii in i:
+            yield from harvest_float_from_int(i)
 
 def harvest_int_from_bytearray(o):
-    raise NotImplemented()
+    for i in [o, o.upper(), o.lower()]:
+        yield int.from_bytes(o, 'little')
+        yield int.from_bytes(o, 'big')
 
 @flipped
 def harvest_list_from_bytearray(o):
@@ -331,7 +341,7 @@ def harvest_dict_from_int(o):
     raise NotImplemented()
 
 def harvest_float_from_int(o):
-    raise NotImplemented()
+    yield from map(operator.mul, window(harvest_int_from_int(o)))
 
 def harvest_int_from_int(o):
     yield from (i+x for x in range(-10, 11))
@@ -697,10 +707,25 @@ def mutate(o, output_type):
             yield i
             yield from mutation_map[type(i), output_type](i)
 
+def warn_about_duplicates(pipe):
+    last = None
+    count = 0
+    current_dup = None
+    for a, b in window(pipe, 2):
+        if a == b and type(a) == type(b):
+            current_dup = a
+            count += 1
+        elif count > 0:
+            eprint('WARNING: found', count, 'duplicates of', repr(current_dup))
+            count = 0
+        yield a
+        last = b
+    yield last
+
 if __name__ == '__main__':
-    for test in ['hi', 5]:
-        for i,v in enumerate(mutate(test, str)):
-            print(repr(v))
     for i in harvest_complex_from_bytearray(bytearray(b'hi')):
         print('-', i, type(i))
+    for test in ['hi', 5]:
+        for i,v in enumerate(warn_about_duplicates(mutate(test, str))):
+            print(repr(v))
 
