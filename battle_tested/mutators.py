@@ -310,16 +310,20 @@ def harvest_bool_from_float(o):
         yield from harvest_bool_from_int(i)
 
 def harvest_bytearray_from_float(o):
-    raise NotImplemented()
+    for i in harvest_int_from_float(o):
+        yield from harvest_bytearray_from_int(i)
 
 def harvest_bytes_from_float(o):
-    raise NotImplemented()
+    for i in harvest_int_from_float(o):
+        yield from harvest_bytes_from_int(i)
 
 def harvest_complex_from_float(o):
-    raise NotImplemented()
+    for i in harvest_int_from_float(o):
+        yield from harvest_complex_from_int(i)
 
 def harvest_dict_from_float(o):
-    raise NotImplemented()
+    for i in harvest_int_from_float(o):
+        yield from harvest_dict_from_int(i)
 
 def harvest_float_from_float(o):
     for i in harvest_int_from_float(o):
