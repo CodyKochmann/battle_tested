@@ -229,9 +229,6 @@ def harvest_list_from_bytes(o):
 def harvest_set_from_bytes(o):
     yield from map(set, harvest_list_from_bytes(o))
 
-def int_to_str(i):
-    return chr(i % 1114112)
-
 def harvest_str_from_bytes(o):
     for b in harvest_bytes_from_bytes(o):
         yield bytes_decode_or_ignore(b)
@@ -269,15 +266,17 @@ def harvest_int_from_complex(o):
     yield from harvest_int_from_float(o.imag)
     yield from harvest_int_from_float(o.real)
 
-@flipped
 def harvest_list_from_complex(o):
-    raise NotImplemented()
+    yield from harvest_list_from_float(o.imag)
+    yield from harvest_list_from_float(o.real)
 
 def harvest_set_from_complex(o):
-    raise NotImplemented()
+    yield from harvest_set_from_float(o.imag)
+    yield from harvest_set_from_float(o.real)
 
 def harvest_str_from_complex(o):
-    raise NotImplemented()
+    yield from harvest_str_from_float(o.imag)
+    yield from harvest_str_from_float(o.real)
 
 def harvest_tuple_from_complex(o):
     yield from map(tuple, harvest_list_from_complex(o))
@@ -460,7 +459,8 @@ def harvest_bytes_from_list(o):
     yield from map_attempt(str_encode_or_ignore, harvest_str_from_list(o))
 
 def harvest_complex_from_list(o):
-    raise NotImplemented()
+    for a, b in window(harvest_int_from_list(o)):
+        yield complex(a, b)
 
 def harvest_dict_from_list(o):
     len_o = len(o)
@@ -478,7 +478,7 @@ def harvest_float_from_list(o):
             yield b/a
 
 def harvest_int_from_list(o):
-    yield len(o)
+    yield from harvest_int_from_int(len(o))
     for fn in [len, int, ord]:
         yield from map_attempt(fn, o)
     yield from str_encode_or_ignore(repr(o))
