@@ -363,13 +363,15 @@ def harvest_bool_from_int(o):
     yield from (x=='1' for x in bin(i**2))
 
 def harvest_bytearray_from_int(o):
-    raise NotImplemented()
+    yield from map(bytearray, harvest_bytes_from_int(o))
 
 def harvest_bytes_from_int(o):
-    raise NotImplemented()
+    for ints in window(harvest_int_from_int(o), 8):
+        yield from (bytes(ints[:i]) for i in range(1, 8))
 
 def harvest_complex_from_int(o):
-    raise NotImplemented()
+    for a, b in window(harvest_int_from_int(o), 2):
+        yield complex(a, b)
 
 def harvest_dict_from_int(o):
     for k, v in zip(harvest_str_from_int(o), harvest_int_from_int(o)):
