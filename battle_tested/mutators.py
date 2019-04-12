@@ -796,12 +796,12 @@ def warn_about_duplicates(pipe):
     yield last
 
 if __name__ == '__main__':
-    for i in harvest_complex_from_bytearray(bytearray(b'hi')):
-        print('-', i, type(i))
-    for test in ['hi', 5]:
-        for i,v in enumerate(warn_about_duplicates(mutate(test, str))):
-            print(repr(v))
-    for test in ['hi', 5]:
-        for i,v in enumerate(warn_about_duplicates(mutate(test, dict))):
-            print(repr(v))
-
+    for _ in range(145):
+        for c,i in enumerate(harvest_complex_from_bytearray(bytearray(b'hi'))):
+            continue #print('-', i, type(i))
+        #print(c)
+        for test in "hello world why don't we get some waffles or something? 7777".split(' '):
+            for _type in (str, dict, list, bool, int, float):
+                for i,v in enumerate(warn_about_duplicates(mutate(test, _type))):
+                    continue #print(repr(v))
+                #print(i)
