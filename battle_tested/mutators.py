@@ -194,19 +194,25 @@ def harvest_bool_from_bytes(o):
         yield from (x=='1' for x in bin(i)[2:])
 
 def harvest_bytearray_from_bytes(o):
-    raise NotImplemented()
+    yield from map(bytearray, harvest_bytes_from_bytes(o))
 
 def harvest_bytes_from_bytes(o):
-    raise NotImplemented()
+    for ints in window(harvest_int_from_bytes(o), 8):
+        for i in range(1, 8):
+            yield bytes(ints[:i])
+            yield bytes(ints[:i]) * i
 
 def harvest_complex_from_bytes(o):
-    raise NotImplemented()
+    for a, b in window(harvest_int_from_bytes(o), 2):
+        yield complex(a, b)
 
 def harvest_dict_from_bytes(o):
-    raise NotImplemented()
+    for l in harvest_list_from_bytes(o):
+        yield from harvest_dict_from_list(l)
 
 def harvest_float_from_bytes(o):
-    raise NotImplemented()
+    for a, b in window(harvest_int_from_bytes(o), 2):
+        yield a * b
 
 def harvest_int_from_bytes(o):
     for i in o:
