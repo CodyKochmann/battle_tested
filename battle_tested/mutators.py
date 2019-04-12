@@ -543,13 +543,14 @@ def harvest_bool_from_str(o):
     yield from (bool(ord(ch)%2) for ch in o)
 
 def harvest_bytearray_from_str(o):
-    raise NotImplemented()
+    yield from map(bytearray, harvest_bytes_from_str(o))
 
 def harvest_bytes_from_str(o):
-    raise NotImplemented()
+    yield from map(str.encode, harvest_str_from_str(o))
 
 def harvest_complex_from_str(o):
-    raise NotImplemented()
+    for a, b in window(harvest_int_from_str(o), 2):
+        yield complex(a, b)
 
 def harvest_dict_from_str(o):
     yield {o: None}
