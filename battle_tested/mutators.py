@@ -22,6 +22,7 @@ kinda_random_big_int = (a*b for a,b in zip(kinda_random_medium_int, kinda_random
 encoders = b16encode, b32encode, b64encode, b64encode, a85encode
 
 str_encode_or_ignore = partial(str.encode, errors='ignore')
+bytes_decode_or_ignore = partial(bytes.decode, errors='ignore')
 
 def cached_uniq(pipe):
     cache = defaultdict(partial(deque, maxlen=4))
@@ -228,32 +229,45 @@ def harvest_list_from_bytes(o):
 def harvest_set_from_bytes(o):
     yield from map(set, harvest_list_from_bytes(o))
 
+def int_to_str(i):
+    return chr(i % 1114112)
+
 def harvest_str_from_bytes(o):
-    raise NotImplemented()
+    for b in harvest_bytes_from_bytes(o):
+        yield bytes_decode_or_ignore(b)
 
 def harvest_tuple_from_bytes(o):
     yield from map(tuple, harvest_list_from_bytes(o))
 
 def harvest_bool_from_complex(o):
-    raise NotImplemented()
+    yield from harvest_bool_from_float(o.imag)
+    yield from harvest_bool_from_float(o.real)
 
 def harvest_bytearray_from_complex(o):
-    raise NotImplemented()
+    yield from harvest_bytearray_from_float(o.imag)
+    yield from harvest_bytearray_from_float(o.real)
 
 def harvest_bytes_from_complex(o):
-    raise NotImplemented()
+    yield from harvest_bytes_from_float(o.imag)
+    yield from harvest_bytes_from_float(o.real)
 
 def harvest_complex_from_complex(o):
-    raise NotImplemented()
+    for a, b in window(harvest_int_from_float(o.imag), 2):
+        yield complex(a, b)
+    for a, b in window(harvest_int_from_float(o.real), 2):
+        yield complex(a, b)
 
 def harvest_dict_from_complex(o):
-    raise NotImplemented()
+    yield from harvest_dict_from_float(o.imag)
+    yield from harvest_dict_from_float(o.real)
 
 def harvest_float_from_complex(o):
-    raise NotImplemented()
+    yield from harvest_float_from_float(o.imag)
+    yield from harvest_float_from_float(o.real)
 
 def harvest_int_from_complex(o):
-    raise NotImplemented()
+    yield from harvest_int_from_float(o.imag)
+    yield from harvest_int_from_float(o.real)
 
 @flipped
 def harvest_list_from_complex(o):
