@@ -184,11 +184,12 @@ def harvest_dict_from_bytearray(o):
 
 def harvest_float_from_bytearray(o):
     assert type(o) is bytearray, o
-    yield float(len(o) * len(o))
-    for i in harvest_bytearray_from_bytearray(o):
-        yield float.fromhex(o.hex())
-        for ii in i:
-            yield from harvest_float_from_int(i)
+    yield from harvest_float_from_float(float(len(o) * len(o)))
+    if o:
+        for i in harvest_bytearray_from_bytearray(o):
+            yield float.fromhex(o.hex())
+            for ii in i:
+                yield from harvest_float_from_int(i)
 
 def harvest_int_from_bytearray(o):
     assert type(o) is bytearray, o
@@ -254,7 +255,7 @@ def harvest_float_from_bytes(o):
     assert type(o) is bytes, o
     yield from harvest_float_from_list(list(o))
     for a, b in window(harvest_int_from_bytes(o), 2):
-        yield a * b
+        yield float(a * b)
 
 def harvest_int_from_bytes(o):
     assert type(o) is bytes, o
@@ -496,7 +497,7 @@ def harvest_float_from_int(o):
             yield b / a
         if b != 0:
             yield a / b
-        yield a * b
+        yield float(a * b)
 
 def harvest_int_from_int(o):
     assert type(o) is int, o
@@ -582,7 +583,7 @@ def harvest_float_from_list(o):
     yield float(len(o))
     pipe = iter(harvest_int_from_list(o))
     for a, b in zip(pipe, pipe):
-        yield a * b
+        yield float(a * b)
         if b and a:
             yield a/b
             yield b/a
@@ -964,7 +965,7 @@ def test_all_mutations():
             ran = False
             done += 1
             eprint(done, '/', tests, 'testing harvest_{}_from_{}'.format(output_type.__name__, type(start_variable).__name__))
-            for v in first(mutate(start_variable, output_type), 100):
+            for v in first(mutate(start_variable, output_type), 10000000):
                 ran = True
                 assert type(v) is output_type, v
                 count += 1
