@@ -1,0 +1,32 @@
+success: created 28538508 inputs
+
+ Performance counter stats for 'python mutators.py':
+
+         38,750.25 msec task-clock                #    1.000 CPUs utilized          
+                24      context-switches          #    0.619 M/sec                  
+                 0      cpu-migrations            #    0.000 K/sec                  
+             3,345      page-faults               #   86.323 M/sec                  
+   119,126,824,578      cycles                    # 3074240.634 GHz                   (28.57%)
+    29,240,269,706      stalled-cycles-frontend   #   24.55% frontend cycles idle     (28.57%)
+   240,506,109,631      instructions              #    2.02  insn per cycle         
+                                                  #    0.12  stalled cycles per insn  (35.71%)
+    51,601,278,213      branches                  # 1331645889.368 M/sec              (35.71%)
+       605,641,497      branch-misses             #    1.17% of all branches          (35.71%)
+    71,940,211,360      L1-dcache-loads           # 1856521583.484 M/sec              (28.55%)
+       563,003,068      L1-dcache-load-misses     #    0.78% of all L1-dcache hits    (14.29%)
+        21,097,174      LLC-loads                 # 544443.200 M/sec                  (14.29%)
+   <not supported>      LLC-load-misses                                             
+   <not supported>      L1-icache-loads                                             
+     1,006,368,330      L1-icache-load-misses                                         (21.43%)
+    71,950,763,411      dTLB-loads                # 1856793894.477 M/sec              (21.42%)
+        22,138,846      dTLB-load-misses          #    0.03% of all dTLB cache hits   (14.29%)
+       130,802,036      iTLB-loads                # 3375536.413 M/sec                 (14.29%)
+         2,011,208      iTLB-load-misses          #    1.54% of all iTLB cache hits   (21.43%)
+   <not supported>      L1-dcache-prefetches                                        
+       105,835,576      L1-dcache-prefetch-misses # 2731240.671 M/sec                 (28.57%)
+
+      38.750659840 seconds time elapsed
+
+      38.739037000 seconds user
+       0.012000000 seconds sys
+
