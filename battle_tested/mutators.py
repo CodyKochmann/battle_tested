@@ -30,6 +30,7 @@ def cached_uniq(pipe):
         if i not in cache[type(i)]:
             cache[type(i)].append(i)
             yield i
+
 def uniq(pipe):
     prev = next(pipe)
     for i in pipe:
@@ -41,10 +42,11 @@ def uniq(pipe):
 
 
 def hashable(o):
-    with suppress(Exception):
+    try:
         hash(o)
         return True
-    return False
+    except:
+        return False
 
 def hashable_or_none(o):
     '''returns an object if it is hashable or just None'''
@@ -56,6 +58,7 @@ def hashable_or_none(o):
 
 def flipped(fn):
     '''this decorator allows generators to yield their output and their flipped output'''
+    assert callable(fn), fn
     def flip(o):
         if isinstance(o, str):
             return ''.join(reversed(o))
@@ -75,6 +78,7 @@ def flipped(fn):
 
 def map_attempt(fn, iterable):
     ''' this works just like map but filters out crashes '''
+    assert callable(fn), fn
     iterable = iter(iterable)
     still_going = True
     while still_going:
@@ -84,22 +88,27 @@ def map_attempt(fn, iterable):
             still_going = False
 
 def harvest_bool_from_bool(o):
+    assert type(o) is bool, o
     yield not o
     yield o
 
 def harvest_bytearray_from_bool(o):
+    assert type(o) is bool, o
     yield bytearray(o)
     yield bytearray(not o)
 
 def harvest_bytes_from_bool(o):
+    assert type(o) is bool, o
     yield bytes(o)
     yield bytes(not o)
 
 def harvest_complex_from_bool(o):
+    assert type(o) is bool, o
     yield complex(o)
     yield complex(not o)
 
 def harvest_dict_from_bool(o):
+    assert type(o) is bool, o
     global standard_defaults
     for i in standard_defaults:
         yield {o:i}
@@ -107,23 +116,28 @@ def harvest_dict_from_bool(o):
         yield {i:o, o:i}
 
 def harvest_float_from_bool(o):
+    assert type(o) is bool, o
     yield float(o)
     yield float(not o)
 
 def harvest_int_from_bool(o):
+    assert type(o) is bool, o
     yield bool(o)
     yield bool(not o)
 
 def harvest_list_from_bool(o):
+    assert type(o) is bool, o
     for i in range(1, 8):
         yield [o] * i
 
 def harvest_set_from_bool(o):
+    assert type(o) is bool, o
     yield {o}
     yield {not o}
     yield {o, not o}
 
 def harvest_str_from_bool(o):
+    assert type(o) is bool, o
     yield json.dumps(o)
     yield repr(o)
     int_o = int(o)
@@ -132,14 +146,17 @@ def harvest_str_from_bool(o):
     yield bytes(int_o).decode()
 
 def harvest_tuple_from_bool(o):
+    assert type(o) is bool, o
     yield from map(tuple, harvest_list_from_bool(o))
 
 def harvest_bool_from_bytearray(o):
+    assert type(o) is bytearray, o
     for i in harvest_list_from_bytearray(o):
         if isinstance(i, int):
             yield from harvest_bool_from_int(i)
 
 def harvest_bytearray_from_bytearray(o):
+    assert type(o) is bytearray, o
     for i in range(1, 9):
         tmp = o * i
         yield tmp
@@ -147,9 +164,11 @@ def harvest_bytearray_from_bytearray(o):
         yield tmp
 
 def harvest_bytes_from_bytearray(o):
+    assert type(o) is bytearray, o
     yield from map(bytes, harvest_bytearray_from_bytearray(o))
 
 def harvest_complex_from_bytearray(o):
+    assert type(o) is bytearray, o
     yield from G(harvest_bytearray_from_bytearray(o)
         ).chain(
         ).window(2
@@ -157,22 +176,26 @@ def harvest_complex_from_bytearray(o):
         ).chain()
 
 def harvest_dict_from_bytearray(o):
+    assert type(o) is bytearray, o
     yield from harvest_dict_from_list(list(o))
     yield from harvest_dict_from_list(list(map(chr, o)))
 
 def harvest_float_from_bytearray(o):
+    assert type(o) is bytearray, o
     for i in harvest_bytearray_from_bytearray(o):
         yield float.fromhex(o.hex())
         for ii in i:
             yield from harvest_float_from_int(i)
 
 def harvest_int_from_bytearray(o):
+    assert type(o) is bytearray, o
     for i in [o, o.upper(), o.lower()]:
         yield int.from_bytes(o, 'little')
         yield int.from_bytes(o, 'big')
 
 @flipped
 def harvest_list_from_bytearray(o):
+    assert type(o) is bytearray, o
     for x in range(-1, 2):
         yield [i+x for i in o]
         yield [(i+x)%2 for i in o]
@@ -180,171 +203,215 @@ def harvest_list_from_bytearray(o):
         yield [i+x for i in o if not i%2]
 
 def harvest_set_from_bytearray(o):
+    assert type(o) is bytearray, o
     yield from map(set, harvest_list_from_bytearray(o))
 
 def harvest_str_from_bytearray(o):
+    assert type(o) is bytearray, o
     for l in harvest_list_from_bytearray(o):
         with suppress(Exception):
             yield ''.join(map(chr, l))
 
 def harvest_tuple_from_bytearray(o):
+    assert type(o) is bytearray, o
     yield from map(tuple, harvest_list_from_bytearray(o))
 
 def harvest_bool_from_bytes(o):
+    assert type(o) is bytes, o
     for i in o:
         yield from (x=='1' for x in bin(i)[2:])
 
 def harvest_bytearray_from_bytes(o):
+    assert type(o) is bytes, o
     yield from map(bytearray, harvest_bytes_from_bytes(o))
 
 def harvest_bytes_from_bytes(o):
+    assert type(o) is bytes, o
     for ints in window(harvest_int_from_bytes(o), 8):
         for i in range(1, 8):
             yield bytes(ints[:i])
             yield bytes(ints[:i]) * i
 
 def harvest_complex_from_bytes(o):
+    assert type(o) is bytes, o
     for a, b in window(harvest_int_from_bytes(o), 2):
         yield complex(a, b)
 
 def harvest_dict_from_bytes(o):
+    assert type(o) is bytes, o
     for l in harvest_list_from_bytes(o):
         yield from harvest_dict_from_list(l)
 
 def harvest_float_from_bytes(o):
+    assert type(o) is bytes, o
     for a, b in window(harvest_int_from_bytes(o), 2):
         yield a * b
 
 def harvest_int_from_bytes(o):
+    assert type(o) is bytes, o
     for i in o:
         yield from harvest_int_from_int(i)
 
 @flipped
 def harvest_list_from_bytes(o):
+    assert type(o) is bytes, o
     yield [i for i in o]
     yield [bool(i) for i in o]
     yield [str(i) for i in o]
     yield [float(i) for i in o]
 
 def harvest_set_from_bytes(o):
+    assert type(o) is bytes, o
     yield from map(set, harvest_list_from_bytes(o))
 
 def harvest_str_from_bytes(o):
+    assert type(o) is bytes, o
     for b in harvest_bytes_from_bytes(o):
         yield bytes_decode_or_ignore(b)
 
 def harvest_tuple_from_bytes(o):
+    assert type(o) is bytes, o
     yield from map(tuple, harvest_list_from_bytes(o))
 
 def harvest_bool_from_complex(o):
+    assert type(o) is complex, o
     yield from harvest_bool_from_float(o.imag)
     yield from harvest_bool_from_float(o.real)
 
 def harvest_bytearray_from_complex(o):
+    assert type(o) is complex, o
     yield from harvest_bytearray_from_float(o.imag)
     yield from harvest_bytearray_from_float(o.real)
 
 def harvest_bytes_from_complex(o):
+    assert type(o) is complex, o
     yield from harvest_bytes_from_float(o.imag)
     yield from harvest_bytes_from_float(o.real)
 
 def harvest_complex_from_complex(o):
+    assert type(o) is complex, o
     for a, b in window(harvest_int_from_float(o.imag), 2):
         yield complex(a, b)
     for a, b in window(harvest_int_from_float(o.real), 2):
         yield complex(a, b)
 
 def harvest_dict_from_complex(o):
+    assert type(o) is complex, o
     yield from harvest_dict_from_float(o.imag)
     yield from harvest_dict_from_float(o.real)
 
 def harvest_float_from_complex(o):
+    assert type(o) is complex, o
     yield from harvest_float_from_float(o.imag)
     yield from harvest_float_from_float(o.real)
 
 def harvest_int_from_complex(o):
+    assert type(o) is complex, o
     yield from harvest_int_from_float(o.imag)
     yield from harvest_int_from_float(o.real)
 
 def harvest_list_from_complex(o):
+    assert type(o) is complex, o
     yield from harvest_list_from_float(o.imag)
     yield from harvest_list_from_float(o.real)
 
 def harvest_set_from_complex(o):
+    assert type(o) is complex, o
     yield from harvest_set_from_float(o.imag)
     yield from harvest_set_from_float(o.real)
 
 def harvest_str_from_complex(o):
+    assert type(o) is complex, o
     yield from harvest_str_from_float(o.imag)
     yield from harvest_str_from_float(o.real)
 
 def harvest_tuple_from_complex(o):
+    assert type(o) is complex, o
     yield from map(tuple, harvest_list_from_complex(o))
 
 def remutate_dict(o, output_type):
+    assert type(o) is dict, o
+    assert output_type in standard_types
     for k, v in o.items():
         yield from mutate(k, output_type)
         if not isinstance(v, dict): # prevent infinite mutations
             yield from mutate(v, output_type)
 
 def harvest_bool_from_dict(o):
+    assert type(o) is dict, o
     yield from remutate_dict(o, bool)
 
 def harvest_bytearray_from_dict(o):
+    assert type(o) is dict, o
     yield from remutate_dict(o, bytearray)
 
 def harvest_bytes_from_dict(o):
+    assert type(o) is dict, o
     yield from remutate_dict(o, bytes)
 
 def harvest_complex_from_dict(o):
+    assert type(o) is dict, o
     yield from remutate_dict(o, complex)
 
 def harvest_dict_from_dict(o):
+    assert type(o) is dict, o
     for key_subset in harvest_list_from_list(list(o.keys())):
         yield {k:o[k] for k in key_subset}
 
 def harvest_float_from_dict(o):
+    assert type(o) is dict, o
     yield from remutate_dict(o, float)
 
 def harvest_int_from_dict(o):
+    assert type(o) is dict, o
     yield from remutate_dict(o, int)
 
 @flipped
 def harvest_list_from_dict(o):
+    assert type(o) is dict, o
     yield list(o.keys())
     yield list(o.values())
 
 def harvest_tuple_from_dict(o):
+    assert type(o) is dict, o
     yield from map(tuple, harvest_list_from_dict(o))
 
 def harvest_set_from_dict(o):
+    assert type(o) is dict, o
     yield set(o.keys())
     yield from harvest_set_from_list(list(o.values()))
 
 def harvest_str_from_dict(o):
+    assert type(o) is dict, o
     yield from remutate_dict(o, bytes)
 
 def harvest_bool_from_float(o):
+    assert type(o) is float, o
     for i in harvest_int_from_float(o):
         yield from harvest_bool_from_int(i)
 
 def harvest_bytearray_from_float(o):
+    assert type(o) is float, o
     for i in harvest_int_from_float(o):
         yield from harvest_bytearray_from_int(i)
 
 def harvest_bytes_from_float(o):
+    assert type(o) is float, o
     for i in harvest_int_from_float(o):
         yield from harvest_bytes_from_int(i)
 
 def harvest_complex_from_float(o):
+    assert type(o) is float, o
     for i in harvest_int_from_float(o):
         yield from harvest_complex_from_int(i)
 
 def harvest_dict_from_float(o):
+    assert type(o) is float, o
     for i in harvest_int_from_float(o):
         yield from harvest_dict_from_int(i)
 
 def harvest_float_from_float(o):
+    assert type(o) is float, o
     for i in harvest_int_from_float(o):
         yield o * i
         yield o + i
@@ -352,9 +419,11 @@ def harvest_float_from_float(o):
         yield i - o
 
 def harvest_int_from_float(o):
+    assert type(o) is float, o
     yield from chain(map(harvest_int_from_int, o.as_integer_ratio()))
 
 def harvest_list_from_float(o):
+    assert type(o) is float, o
     a, b = o.as_integer_ratio()
     yield [o] * a
     yield [o] * a
@@ -368,39 +437,48 @@ def harvest_list_from_float(o):
     yield [([o*b] * b)] * a
 
 def harvest_set_from_float(o):
+    assert type(o) is float, o
     for l in harvest_list_from_float(o):
         yield from harvest_set_from_list(o)
 
 def harvest_str_from_float(o):
+    assert type(o) is float, o
     yield str(o)
     yield repr(o)
     yield from map(chr, harvest_int_from_float(o))
 
 def harvest_tuple_from_float(o):
+    assert type(o) is float, o
     yield from map(tuple, harvest_list_from_float(o))
 
 def harvest_bool_from_int(o):
+    assert type(o) is int, o
     yield o % 2 == 1
     yield o % 2 == 0
     yield from (x=='1' for x in bin(i))
     yield from (x=='1' for x in bin(i**2))
 
 def harvest_bytearray_from_int(o):
+    assert type(o) is int, o
     yield from map(bytearray, harvest_bytes_from_int(o))
 
 def harvest_bytes_from_int(o):
+    assert type(o) is int, o
     for ints in window(harvest_int_from_int(o), 8):
         yield from (bytes(ints[:i]) for i in range(1, 8))
 
 def harvest_complex_from_int(o):
+    assert type(o) is int, o
     for a, b in window(harvest_int_from_int(o), 2):
         yield complex(a, b)
 
 def harvest_dict_from_int(o):
+    assert type(o) is int, o
     for k, v in zip(harvest_str_from_int(o), harvest_int_from_int(o)):
         yield {k:v for _,k,v in zip(range(min(16, max(1, v))), harvest_str_from_str(k), harvest_int_from_int(v))}
 
 def harvest_float_from_int(o):
+    assert type(o) is int, o
     for a, b in window(harvest_int_from_int(o), 2):
         if a != 0:
             yield b / a
@@ -409,6 +487,7 @@ def harvest_float_from_int(o):
         yield a * b
 
 def harvest_int_from_int(o):
+    assert type(o) is int, o
     yield from (i+x for x in range(-10, 11))
     yield from (i//x for x in range(-10, -1))
     yield from (i//x for x in range(1, 11))
@@ -418,6 +497,7 @@ def harvest_int_from_int(o):
 
 @flipped
 def harvest_list_from_int(o):
+    assert type(o) is int, o
     bin_o = bin(o)[2:]
     yield list(bin_o)
     as_bools = [i=='1' for i in bin_o]
@@ -428,9 +508,11 @@ def harvest_list_from_int(o):
         yield [(not x) for x in as_bools[i:]]
 
 def harvest_set_from_int(o):
+    assert type(o) is int, o
     yield from map(set, harvest_list_from_int(o))
 
 def harvest_str_from_int(o):
+    assert type(o) is int, o
     yield bin(i)
     yield json.dumps(i)
     chars = filter(bool, map_attempt(lambda i:(printables[i%len(printables)]), harvest_int_from_int(o)))
@@ -442,27 +524,33 @@ def harvest_str_from_int(o):
             break
 
 def harvest_tuple_from_int(o):
+    assert type(o) is int, o
     for i in harvest_list_from_int(o):
         yield tuple(i)
         yield tuple(set(i))
 
 def harvest_bool_from_list(o):
+    assert type(o) is list, o
     as_bools = list(map(bool, o))
     yield from as_bools
     for i in as_bools:
         yield not i
 
 def harvest_bytearray_from_list(o):
+    assert type(o) is list, o
     yield from map(bytearray, harvest_bytes_from_list(o))
 
 def harvest_bytes_from_list(o):
+    assert type(o) is list, o
     yield from map_attempt(str_encode_or_ignore, harvest_str_from_list(o))
 
 def harvest_complex_from_list(o):
+    assert type(o) is list, o
     for a, b in window(harvest_int_from_list(o)):
         yield complex(a, b)
 
 def harvest_dict_from_list(o):
+    assert type(o) is list, o
     len_o = len(o)
     o = itertools.cycle(o)
     for i in range(1, int(len_o*2)):
@@ -470,6 +558,7 @@ def harvest_dict_from_list(o):
             yield {next(o):next(o) for _ in range(i)}
 
 def harvest_float_from_list(o):
+    assert type(o) is list, o
     pipe = iter(harvest_int_from_list(o))
     for a, b in zip(pipe, pipe):
         yield a * b
@@ -478,6 +567,7 @@ def harvest_float_from_list(o):
             yield b/a
 
 def harvest_int_from_list(o):
+    assert type(o) is list, o
     yield from harvest_int_from_int(len(o))
     for fn in [len, int, ord]:
         yield from map_attempt(fn, o)
@@ -485,6 +575,7 @@ def harvest_int_from_list(o):
 
 @flipped
 def harvest_list_from_list(o):
+    assert type(o) is list, o
     yield o
     if o:
         for i in range(1, int(math.sqrt(len(o)))+1):
@@ -494,6 +585,7 @@ def harvest_list_from_list(o):
         yield [i for i in o if not i]
 
 def harvest_set_from_list(o):
+    assert type(o) is list, o
     for l in harvest_list_from_list(o):
         s = set(map(hashable_or_none, l))
         yield {i for i in s if i is not None}
@@ -501,6 +593,7 @@ def harvest_set_from_list(o):
         yield s
 
 def harvest_str_from_list(o):
+    assert type(o) is list, o
     yield repr(o)
     for i in o:
         with suppress(Exception):
@@ -516,57 +609,74 @@ def harvest_str_from_list(o):
             yield json.dumps(i)
 
 def harvest_tuple_from_list(o):
+    assert type(o) is list, o
     yield from map(tuple, harvest_list_from_list(o))
     yield from map(tuple, harvest_set_from_list(o))
 
 def harvest_bool_from_set(o):
+    assert type(o) is set, o
     yield from harvest_bool_from_list(list(o))
 
 def harvest_bytearray_from_set(o):
+    assert type(o) is set, o
     yield from harvest_bytearray_from_list(list(o))
 
 def harvest_bytes_from_set(o):
+    assert type(o) is set, o
     yield from harvest_bytes_from_list(list(o))
 
 def harvest_complex_from_set(o):
+    assert type(o) is set, o
     yield from harvest_complex_from_list(list(o))
 
 def harvest_dict_from_set(o):
+    assert type(o) is set, o
     yield from harvest_dict_from_list(list(o))
 
 def harvest_float_from_set(o):
+    assert type(o) is set, o
     yield from harvest_float_from_list(list(o))
 
 def harvest_int_from_set(o):
+    assert type(o) is set, o
     yield from harvest_int_from_list(list(o))
 
 @flipped
 def harvest_list_from_set(o):
+    assert type(o) is set, o
     yield from harvest_list_from_list(list(o))
 
 def harvest_set_from_set(o):
+    assert type(o) is set, o
     yield from harvest_set_from_list(list(o))
 
 def harvest_str_from_set(o):
+    assert type(o) is set, o
     yield from harvest_str_from_list(list(o))
 
 def harvest_tuple_from_set(o):
+    assert type(o) is set, o
     yield from map(tuple, harvest_list_from_set(o))
 
 def harvest_bool_from_str(o):
+    assert type(o) is str, o
     yield from (bool(ord(ch)%2) for ch in o)
 
 def harvest_bytearray_from_str(o):
+    assert type(o) is str, o
     yield from map(bytearray, harvest_bytes_from_str(o))
 
 def harvest_bytes_from_str(o):
+    assert type(o) is str, o
     yield from map(str.encode, harvest_str_from_str(o))
 
 def harvest_complex_from_str(o):
+    assert type(o) is str, o
     for a, b in window(harvest_int_from_str(o), 2):
         yield complex(a, b)
 
 def harvest_dict_from_str(o):
+    assert type(o) is str, o
     yield {o: None}
     yield {None: o}
     yield {o: o}
@@ -575,24 +685,29 @@ def harvest_dict_from_str(o):
     yield from harvest_dict_from_dict({a:b for a,b in zip(*([iter(o)]*2))})
 
 def harvest_float_from_str(o):
+    assert type(o) is str, o
     for a, b in window(filter(bool, map(ord, o)), 2):
         yield a * b
         yield a / b
         yield b / a
 
 def harvest_int_from_str(o):
+    assert type(o) is str, o
     yield from map(ord, o)
 
 @flipped
 def harvest_list_from_str(o):
+    assert type(o) is str, o
     yield from harvest_list_from_list(list(o))
     yield from harvest_list_from_list(list(map(ord, o)))
 
 def harvest_set_from_str(o):
+    assert type(o) is str, o
     for l in harvest_list_from_str(o):
         yield from harvest_set_from_list(l)
 
 def harvest_str_from_str(o):
+    assert type(o) is str, o
     yield o.upper()
     yield o.lower()
     yield o.strip()
@@ -602,40 +717,52 @@ def harvest_str_from_str(o):
     yield ''.join(x for x in o if not x.isnumeric())
 
 def harvest_tuple_from_str(o):
+    assert type(o) is str, o
     yield from map(tuple, harvest_list_from_str(o))
 
 def harvest_bool_from_tuple(o):
+    assert type(o) is tuple, o
     yield from map(bool, o)
 
 def harvest_bytearray_from_tuple(o):
+    assert type(o) is tuple, o
     yield from harvest_bytearray_from_list(list(o))
 
 def harvest_bytes_from_tuple(o):
+    assert type(o) is tuple, o
     yield from harvest_bytes_from_list(list(o))
 
 def harvest_complex_from_tuple(o):
+    assert type(o) is tuple, o
     yield from harvest_complex_from_list(list(o))
 
 def harvest_dict_from_tuple(o):
+    assert type(o) is tuple, o
     yield from harvest_dict_from_list(list(o))
 
 def harvest_float_from_tuple(o):
+    assert type(o) is tuple, o
     yield from harvest_float_from_list(list(o))
 
 def harvest_int_from_tuple(o):
+    assert type(o) is tuple, o
     yield from harvest_int_from_list(list(o))
 
 @flipped
 def harvest_list_from_tuple(o):
+    assert type(o) is tuple, o
     yield from harvest_list_from_list(list(o))
 
 def harvest_set_from_tuple(o):
+    assert type(o) is tuple, o
     yield from harvest_set_from_list(list(o))
 
 def harvest_str_from_tuple(o):
+    assert type(o) is tuple, o
     yield from harvest_str_from_list(list(o))
 
 def harvest_tuple_from_tuple(o):
+    assert type(o) is tuple, o
     yield from map(tuple, harvest_list_from_tuple(o))
 
 
@@ -763,11 +890,18 @@ mutation_map = {
     (tuple, tuple): harvest_tuple_from_tuple
 }
 
+for type_combo in itertools.product(standard_types, repeat=2):
+    assert type_combo in mutation_map, type_combo    
+
 def mutate(o, output_type):
     ''' this function takes an input object and runs mutations on it to harvest
         inputs of the specified output type. this allows battle_tested to create
         more test inputs without needing to rely on random generation '''
     global mutation_map
+    assert isinstance(mutation_map, dict), mutation_map
+    assert all(type(k) is tuple for k in mutation_map), mutation_map
+    assert all(len(k) is 2 for k in mutation_map), mutation_map
+    assert all(all(type(t)==type for t in k) for k in mutation_map), mutation_map
 
     def mutator():
         if isinstance(o, output_type):
@@ -796,9 +930,11 @@ def warn_about_duplicates(pipe):
     yield last
 
 if __name__ == '__main__':
-    for _ in range(145):
+    for _ in range(1):
         for c,i in enumerate(harvest_complex_from_bytearray(bytearray(b'hi'))):
             continue #print('-', i, type(i))
+        for i in mutate({'name':'billy'}, int):
+            continue #print(i)
         #print(c)
         for test in "hello world why don't we get some waffles or something? 7777".split(' '):
             for _type in (str, dict, list, bool, int, float):
