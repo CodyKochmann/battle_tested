@@ -47,6 +47,10 @@ def ammo_from_gc():
 			yield from extract_objects(o)
 	extract_objects.clear_cache()
 
+def infinite_gc_ammo():
+	while 1:
+		yield from ammo_from_gc()
+
 if __name__ == '__main__':
 
 	collected_types = set()

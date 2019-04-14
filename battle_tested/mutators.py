@@ -526,8 +526,8 @@ def harvest_set_from_int(o):
 
 def harvest_str_from_int(o):
     assert type(o) is int, o
-    yield bin(i)
-    yield json.dumps(i)
+    yield bin(o)
+    yield json.dumps(o)
     chars = filter(bool, map_attempt(lambda i:(printables[i%len(printables)]), harvest_int_from_int(o)))
     for l in kinda_random_small_int:
         out = ''.join(c for _,c in zip(range(l), chars))
@@ -929,6 +929,9 @@ def mutate(o, output_type):
     assert all(type(k) is tuple for k in mutation_map), mutation_map
     assert all(len(k) is 2 for k in mutation_map), mutation_map
     assert all(all(type(t)==type for t in k) for k in mutation_map), mutation_map
+
+    if o is None:
+        o = False
 
     def mutator():
         if isinstance(o, output_type):
