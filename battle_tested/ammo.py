@@ -49,7 +49,8 @@ def ammo_from_gc():
 
 def infinite_gc_ammo():
 	while 1:
-		yield from ammo_from_gc()
+		for i in ammo_from_gc():
+			yield i
 
 if __name__ == '__main__':
 

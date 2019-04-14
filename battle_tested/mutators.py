@@ -433,21 +433,30 @@ def harvest_float_from_float(o):
 
 def harvest_int_from_float(o):
     assert type(o) is float, o
-    yield from chain(map(harvest_int_from_int, o.as_integer_ratio()))
+    try:
+        o = o.as_integer_ratio()
+        yield from chain(map(harvest_int_from_int, o))
+    except (ValueError, OverflowError) as e:
+        yield from harvest_int_from_int(1)
 
 def harvest_list_from_float(o):
     assert type(o) is float, o
-    a, b = o.as_integer_ratio()
-    yield [o] * a
-    yield [o] * a
-    yield [a] * b
-    yield [b] * a
-    yield [([o] * a)] * b
-    yield [([o] * b)] * a
-    yield [([o*a] * a)] * b
-    yield [([o*a] * b)] * a
-    yield [([o*b] * a)] * b
-    yield [([o*b] * b)] * a
+    try:
+        a, b = o.as_integer_ratio()
+    except (ValueError, OverflowError) as e:
+        a, b = 1, 2
+    aa = abs(min(512, a))
+    bb = abs(min(512, b))
+    yield [o] * aa
+    yield [o] * aa
+    yield [a] * bb
+    yield [b] * aa
+    yield [([o] * aa)] * bb
+    yield [([o] * bb)] * aa
+    yield [([o*a] * aa)] * bb
+    yield [([o*a] * bb)] * aa
+    yield [([o*b] * aa)] * bb
+    yield [([o*b] * bb)] * aa
 
 def harvest_set_from_float(o):
     assert type(o) is float, o
@@ -468,8 +477,8 @@ def harvest_bool_from_int(o):
     assert type(o) is int, o
     yield o % 2 == 1
     yield o % 2 == 0
-    yield from (x=='1' for x in bin(i))
-    yield from (x=='1' for x in bin(i**2))
+    yield from (x=='1' for x in bin(o))
+    yield from (x=='1' for x in bin(o**2))
 
 def harvest_bytearray_from_int(o):
     assert type(o) is int, o

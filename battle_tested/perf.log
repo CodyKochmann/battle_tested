@@ -2,31 +2,31 @@
 
  Performance counter stats for 'python runner.py':
 
-          9,829.10 msec task-clock                #    1.000 CPUs utilized          
-                18      context-switches          #    1.831 M/sec                  
+         64,741.61 msec task-clock                #    1.000 CPUs utilized          
+               262      context-switches          #    4.047 M/sec                  
                  0      cpu-migrations            #    0.000 K/sec                  
-             2,717      page-faults               #  276.427 M/sec                  
-    30,264,561,787      cycles                    # 3079108.942 GHz                   (28.50%)
-    11,397,406,884      stalled-cycles-frontend   #   37.66% frontend cycles idle     (28.54%)
-    53,770,490,793      instructions              #    1.78  insn per cycle         
-                                                  #    0.21  stalled cycles per insn  (35.71%)
-    11,237,393,179      branches                  # 1143289569.539 M/sec              (35.75%)
-       169,282,351      branch-misses             #    1.51% of all branches          (35.79%)
-    16,302,423,558      L1-dcache-loads           # 1658604492.624 M/sec              (28.57%)
-       554,356,404      L1-dcache-load-misses     #    3.40% of all L1-dcache hits    (14.32%)
-        80,467,820      LLC-loads                 # 8186775.867 M/sec                 (14.32%)
+            23,761      page-faults               #  367.016 M/sec                  
+   199,322,074,757      cycles                    # 3078761.137 GHz                   (28.57%)
+    69,038,778,581      stalled-cycles-frontend   #   34.64% frontend cycles idle     (28.58%)
+   361,367,173,619      instructions              #    1.81  insn per cycle         
+                                                  #    0.19  stalled cycles per insn  (35.72%)
+    75,417,387,184      branches                  # 1164909210.300 M/sec              (35.72%)
+     1,013,877,631      branch-misses             #    1.34% of all branches          (35.72%)
+   109,364,780,049      L1-dcache-loads           # 1689266153.581 M/sec              (28.56%)
+     1,766,557,223      L1-dcache-load-misses     #    1.62% of all L1-dcache hits    (14.28%)
+       585,184,254      LLC-loads                 # 9038851.022 M/sec                 (14.28%)
    <not supported>      LLC-load-misses                                             
    <not supported>      L1-icache-loads                                             
-       504,217,596      L1-icache-load-misses                                         (21.44%)
-    16,327,398,247      dTLB-loads                # 1661145411.232 M/sec              (21.36%)
-        19,859,193      dTLB-load-misses          #    0.12% of all dTLB cache hits   (14.24%)
-        28,487,441      iTLB-loads                # 2898305.118 M/sec                 (14.24%)
-         5,088,897      iTLB-load-misses          #   17.86% of all iTLB cache hits   (21.36%)
+     1,373,045,622      L1-icache-load-misses                                         (21.43%)
+   109,619,989,214      dTLB-loads                # 1693208155.790 M/sec              (21.42%)
+       178,805,357      dTLB-load-misses          #    0.16% of all dTLB cache hits   (14.28%)
+       126,714,942      iTLB-loads                # 1957259.573 M/sec                 (14.28%)
+        32,334,040      iTLB-load-misses          #   25.52% of all iTLB cache hits   (21.43%)
    <not supported>      L1-dcache-prefetches                                        
-        88,642,776      L1-dcache-prefetch-misses # 9018493.845 M/sec                 (28.49%)
+       315,198,538      L1-dcache-prefetch-misses # 4868607.806 M/sec                 (28.57%)
 
-       9.830298135 seconds time elapsed
+      64.745565335 seconds time elapsed
 
-       9.810018000 seconds user
-       0.020004000 seconds sys
+      64.689825000 seconds user
+       0.051998000 seconds sys
 

@@ -1,4 +1,4 @@
-from itertools import cycle, chain
+from itertools import cycle, chain, product
 from collections import defaultdict, deque
 from functools import partial
 
@@ -44,8 +44,10 @@ def fuzz_test(fn, input_type_combinations):
 
 if __name__ == '__main__':
 	fn = lambda a, b: a + b
-	for _, v in zip(range(1000000), fuzz_test(fn, ((int, str), (str, str), (int, int)))):
+	for i, v in zip(range(1000000), fuzz_test(fn, tuple(product(standard.types, repeat=2)))):
 		pass
+		#if i%1000 == 0:
+		#	print(i, 1000000)
 		#print('-')
 		#print(v)
 
