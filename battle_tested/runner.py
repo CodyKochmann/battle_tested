@@ -42,7 +42,7 @@ def fuzz_test(fn, input_type_combinations):
 		yield result_map
 
 
-if __name__ == '__main__':
+def main():
 	fn = lambda a, b: a + b
 	for i, v in zip(range(1000000), fuzz_test(fn, tuple(product(standard.types, repeat=2)))):
 		pass
@@ -50,4 +50,7 @@ if __name__ == '__main__':
 		#	print(i, 1000000)
 		#print('-')
 		#print(v)
+	return v
 
+if __name__ == '__main__':
+	main()
