@@ -1,4 +1,4 @@
-import gc, sys
+import gc, sys, random
 from functools import wraps, partial
 
 eprint = partial(print, file=sys.stderr, flush=True)
@@ -42,9 +42,12 @@ def extract_objects(o):
 				yield o
 
 def ammo_from_gc():
-	for o in gc.get_objects():
+	l = list(gc.get_objects())
+	random.shuffle(l)
+	for o in l:
 		if type(o) in standard.types:
 			yield from extract_objects(o)
+	del l
 	extract_objects.clear_cache()
 
 def infinite_gc_ammo():
@@ -63,6 +66,6 @@ if __name__ == '__main__':
 
 	eprint('validating that at least one of every standard type was collected')
 	for t in standard.types:
-		assert t in collected_types, t.__name__ 
+		assert t in collected_types, t.__name__
 
 	eprint('success!')
