@@ -4,9 +4,14 @@ from functools import partial
 
 from mutators import mutate
 from ammo import infinite_gc_ammo, standard
+from easy_street import easy_street
 
 def fuzz_generator(input_type):
-	for i in infinite_gc_ammo():
+	#for i in infinite_gc_ammo():
+	#	yield from mutate(i, input_type)
+	pipes = [infinite_gc_ammo(), easy_street.garbage()]
+	pipes = chain.from_iterable(chain.from_iterable(cycle(product(pipes, repeat=len(pipes)))))
+	for i in pipes:
 		yield from mutate(i, input_type)
 
 def runner(fn, input_types):
@@ -22,7 +27,7 @@ def fuzz_test(fn, input_type_combinations):
 
 	result_map = defaultdict(
 		lambda: {
-			True: deque(maxlen=16), 
+			True: deque(maxlen=16),
 			False: defaultdict(
 				lambda: deque(maxlen=16)
 			)

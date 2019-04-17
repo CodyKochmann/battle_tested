@@ -447,16 +447,20 @@ def harvest_list_from_float(o):
         a, b = 1, 2
     aa = abs(min(512, a))
     bb = abs(min(512, b))
-    yield [o] * aa
-    yield [o] * aa
-    yield [a] * bb
-    yield [b] * aa
-    yield [([o] * aa)] * bb
-    yield [([o] * bb)] * aa
-    yield [([o*a] * aa)] * bb
-    yield [([o*a] * bb)] * aa
-    yield [([o*b] * aa)] * bb
-    yield [([o*b] * bb)] * aa
+    yield from harvest_list_from_list([o])
+    try:
+        yield [o] * aa
+        yield [o] * aa
+        yield [a] * bb
+        yield [b] * aa
+        yield [([o] * aa)] * bb
+        yield [([o] * bb)] * aa
+        yield [([o*a] * aa)] * bb
+        yield [([o*a] * bb)] * aa
+        yield [([o*b] * aa)] * bb
+        yield [([o*b] * bb)] * aa
+    except MemoryError:
+        pass
 
 def harvest_set_from_float(o):
     assert type(o) is float, o
@@ -927,7 +931,7 @@ mutation_map = {
 }
 
 for type_combo in itertools.product(standard_types, repeat=2):
-    assert type_combo in mutation_map, type_combo    
+    assert type_combo in mutation_map, type_combo
 
 def mutate(o, output_type):
     ''' this function takes an input object and runs mutations on it to harvest

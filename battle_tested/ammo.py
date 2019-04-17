@@ -1,4 +1,4 @@
-import gc, sys, random
+import gc, sys, random, copy
 from functools import wraps, partial
 
 eprint = partial(print, file=sys.stderr, flush=True)
@@ -26,29 +26,42 @@ def extract_objects(o):
 	type_o = type(o)
 	if o is None:
 		yield None
-	elif type_o in standard.types:
-		if type_o in standard.containers:
-			if type_o is dict:
-				yield {k:v for k,v in o.items() if type(k) in standard.objects and type(v) in standard.objects}
-				for k in o:
-					yield from extract_objects(k)
-					yield from extract_objects(o[k])
-			else:
-				yield type_o(i for i in o if type(i) in standard.objects)
-				for i in o:
-					yield from extract_objects(i)
-		else:
-			if type_o in standard.objects:
-				yield o
+	elif type(o) in standard.objects:
+		yield o
+	#elif type_o in standard.types:
+	#	if type_o in standard.containers:
+	#		if type_o is dict:
+	#			yield {k:v for k,v in o.items() if type(k) in standard.objects and type(v) in standard.objects}
+	#			for k in o:
+	#				yield from extract_objects(k)
+	#				yield from extract_objects(o[k])
+	#		else:
+	#			yield type_o(i for i in o if type(i) in standard.objects)
+	#			for i in o:
+	#				yield from extract_objects(i)
+	#	else:
+	#		if type_o in standard.objects:
+	#			yield o
 
 def ammo_from_gc():
-	l = list(gc.get_objects())
-	random.shuffle(l)
-	for o in l:
-		if type(o) in standard.types:
-			yield from extract_objects(o)
-	del l
-	extract_objects.clear_cache()
+	#{tuple({type(ii) for ii in i if type(ii) in standard.objects}) for i in (x for x in gc.get_objects() if type(x) in standard.containers)}
+	containers = standard.containers
+	objects = standard.objects
+	for obj in gc.get_objects():
+		if type(obj) in objects:
+			yield obj
+		if type(obj) in containers:
+			if type(obj) is dict:
+				items = [[k,v] if type(v) in objects else [k,None] for k,v in obj.items()]
+				yield dict(items)
+				yield items
+				for k,v in items:
+					yield k
+					yield v
+			else:
+				items = [i for i in obj if type(i) in objects]
+				yield type(obj)(items)
+				yield from items
 
 def infinite_gc_ammo():
 	while 1:
@@ -66,6 +79,8 @@ if __name__ == '__main__':
 
 	eprint('validating that at least one of every standard type was collected')
 	for t in standard.types:
-		assert t in collected_types, t.__name__
+		if t not in collected_types:
+			print('couldnt find:', t.__name__)
 
 	eprint('success!')
+
