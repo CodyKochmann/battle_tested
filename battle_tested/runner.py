@@ -11,8 +11,10 @@ def fuzz_generator(input_type):
 	#	yield from mutate(i, input_type)
 	pipes = [infinite_gc_ammo(), easy_street.garbage()]
 	pipes = chain.from_iterable(chain.from_iterable(cycle(product(pipes, repeat=len(pipes)))))
+	standard_types = standard.types
 	for i in pipes:
-		yield from mutate(i, input_type)
+		if type(i) in standard.types:
+			yield from mutate(i, input_type)
 
 def runner(fn, input_types):
 	fuzz_generators = map(fuzz_generator, input_types)
@@ -49,7 +51,8 @@ def fuzz_test(fn, input_type_combinations):
 
 def main():
 	fn = lambda a, b: a + b
-	for i, v in zip(range(1000000), fuzz_test(fn, tuple(product(standard.types, repeat=2)))):
+	#for i, v in zip(range(1000000), fuzz_test(fn, tuple(product(standard.types, repeat=2)))):
+	for i in fuzz_test(fn, tuple(product(standard.types, repeat=2))):
 		pass
 		#if i%1000 == 0:
 		#	print(i, 1000000)

@@ -346,8 +346,9 @@ def remutate_dict(o, output_type):
     if not o:
         yield output_type()
     for k, v in o.items():
-        yield from mutate(k, output_type)
-        if not isinstance(v, dict): # prevent infinite mutations
+        if type(k) in standard_types:
+            yield from mutate(k, output_type)
+        if not isinstance(v, dict) and type(v) in standard_types: # prevent infinite mutations
             yield from mutate(v, output_type)
 
 def harvest_bool_from_dict(o):
@@ -942,6 +943,9 @@ def mutate(o, output_type):
     assert all(type(k) is tuple for k in mutation_map), mutation_map
     assert all(len(k) is 2 for k in mutation_map), mutation_map
     assert all(all(type(t)==type for t in k) for k in mutation_map), mutation_map
+
+    assert o is not type, o
+    assert output_type in standard_types, output_type
 
     if o is None:
         o = False
