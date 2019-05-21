@@ -89,20 +89,10 @@ def _verify_fuzz_settings(*, fn=None, max_tests=None, seconds=None, input_types=
     _verify_exit_on_first_crash(exit_on_first_crash)
     _verify_allow(allow)
     _verify_verbosity(verbosity)
-    _verify_input_types_fits_function(fn, input_types)
+    if len(input_types):
+        _verify_input_types_fits_function(fn, input_types)
 
 
-
-# this is the primary usage and supports both "fuzz(fn)" and "@fuzz" syntaxes
-def fuzz(   fn: Callable,
-            *, # force settings to be kv pairs
-            max_tests=1000000000,
-            seconds=6,
-            input_types=tuple(),
-            exit_on_first_crash=False,
-            allow=tuple(),
-            verbosity=1):
-    _verify_fuzz_settings(**locals())
 
 # this is for the "@fuzz()" decorator syntax, to allow users to input settings
 @overload
@@ -114,3 +104,23 @@ def fuzz(   *, # force settings to be kv pairs
             allow=tuple(),
             verbosity=1):
     return partial(fuzz, **locals())
+
+# this is the primary usage and supports both "fuzz(fn)" and "@fuzz" syntaxes
+def fuzz(   fn: Callable,
+            *, # force settings to be kv pairs
+            max_tests=1000000000,
+            seconds=6,
+            input_types=tuple(),
+            exit_on_first_crash=False,
+            allow=tuple(),
+            verbosity=1):
+    _verify_fuzz_settings(**locals())
+    return 'success'
+
+
+if __name__ == '__main__':
+
+    def my_adder(a, b):
+        return a + b
+
+    print(fuzz(my_adder))
