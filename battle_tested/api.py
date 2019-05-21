@@ -38,13 +38,13 @@ def _is_tuple_of_types(types):
     assert isinstance(types, tuple), types
     return all(isinstance(i, type) for i in types)
 
-def _is_tuple_or_tuple_of_types(t):
-    return isinstance(t, tuple) or _is_tuple_of_types(t)
+def _is_type_or_tuple_of_types(t):
+    assert isinstance(t, (tuple, type))
+    return isinstance(t, type) or _is_tuple_of_types(t)
 
 def _is_nested_tuple_of_types(types):
     assert isinstance(types, tuple), types
-    return all(_is_tuple_or_tuple_of_types(i) for i in types)
-
+    return all(_is_type_or_tuple_of_types(i) for i in types)
 
 def _verify_input_types(_input_types):
     assert type(_input_types) == tuple, 'battle_tested needs seconds to be an tuple, not {0}'.format(repr(_input_types))
@@ -143,6 +143,8 @@ if __name__ == '__main__':
 
     assert isinstance(fuzz(my_adder, seconds=3), FuzzResult)
     assert isinstance(fuzz(my_adder, input_types=(int, str)), FuzzResult)
+    assert isinstance(fuzz(my_adder, input_types=((int, str), (bool, bool))), FuzzResult)
+    assert isinstance(fuzz(my_adder, input_types=(int, (list, float, bool))), FuzzResult)
     assert isinstance(fuzz(my_adder, exit_on_first_crash=True), FuzzResult)
     assert isinstance(fuzz(my_adder, allow=(AssertionError,)), FuzzResult)
     assert isinstance(fuzz(my_adder, verbosity=2), FuzzResult)
