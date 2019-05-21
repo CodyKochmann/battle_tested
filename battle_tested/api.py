@@ -80,8 +80,10 @@ def _verify_input_types_fits_function(fn, input_types):
     _verify_input_types(input_types)
     assert len(input_types) == function_arg_count(fn), 'battle_tested needs input_types to be the same length as the arg count of {}, found {} not {}'.format(fn, len(input_types), function_arg_count(fn))
 
+def _verify_decorator(_decorator):
+    assert type(_decorator) == bool, 'battle_tested needs decorator to be a bool, not {}'.format(repr(_decorator))
 
-def _verify_fuzz_settings(*, fn=None, max_tests=None, seconds=None, input_types=None, exit_on_first_crash=None, allow=None, verbosity=None):
+def _verify_fuzz_settings(*, fn=None, max_tests=None, seconds=None, input_types=None, exit_on_first_crash=None, allow=None, verbosity=None, decorator=None):
     _verify_function(fn)
     _verify_max_tests(max_tests)
     _verify_seconds(seconds)
@@ -89,10 +91,12 @@ def _verify_fuzz_settings(*, fn=None, max_tests=None, seconds=None, input_types=
     _verify_exit_on_first_crash(exit_on_first_crash)
     _verify_allow(allow)
     _verify_verbosity(verbosity)
+    _verify_decorator(decorator)
     if len(input_types):
         _verify_input_types_fits_function(fn, input_types)
 
-
+class FuzzResult(dict):
+    pass
 
 # this is for the "@fuzz()" decorator syntax, to allow users to input settings
 @overload
@@ -103,9 +107,9 @@ def fuzz(   *, # force settings to be kv pairs
             exit_on_first_crash=False,
             allow=tuple(),
             verbosity=1):
-    return partial(fuzz, **locals())
+    return partial(fuzz, **locals(), decorator=True) # decorator is hardcoded here to avoid bypassing on accident
 
-# this is the primary usage and supports both "fuzz(fn)" and "@fuzz" syntaxes
+# this is the primary usage and supports "fuzz(fn)" syntax
 def fuzz(   fn: Callable,
             *, # force settings to be kv pairs
             max_tests=1000000000,
@@ -113,9 +117,20 @@ def fuzz(   fn: Callable,
             input_types=tuple(),
             exit_on_first_crash=False,
             allow=tuple(),
-            verbosity=1):
+            verbosity=1,
+            decorator=False):
     _verify_fuzz_settings(**locals())
-    return 'success'
+
+    result = FuzzResult(locals())
+
+    if decorator:
+        try:
+            fn.fuzz_result = result
+        except:
+            pass
+        return fn
+    else:
+        return result
 
 
 if __name__ == '__main__':
@@ -123,4 +138,13 @@ if __name__ == '__main__':
     def my_adder(a, b):
         return a + b
 
-    print(fuzz(my_adder))
+    assert isinstance(fuzz(my_adder), FuzzResult)
+    assert isinstance(fuzz(my_adder), FuzzResult)
+
+    assert isinstance(fuzz(my_adder, seconds=3), FuzzResult)
+    assert isinstance(fuzz(my_adder, input_types=(int, str)), FuzzResult)
+    assert isinstance(fuzz(my_adder, exit_on_first_crash=True), FuzzResult)
+    assert isinstance(fuzz(my_adder, allow=(AssertionError,)), FuzzResult)
+    assert isinstance(fuzz(my_adder, verbosity=2), FuzzResult)
+
+    print('success')
