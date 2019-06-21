@@ -1,3 +1,5 @@
+generators
 hypothesis
-stricttuple
 prettytable
+strict_functions
+stricttuple

@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified 2018-03-12
-# @Last Modified time: 2018-03-12 17:34:24
+# @Last Modified time: 2019-06-21 10:53:10
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -35,7 +35,6 @@ from collections import deque
 from functools import wraps, partial
 from gc import collect as gc
 from generators.inline_tools import attempt
-from graphdb import GraphDB
 from hypothesis import given, strategies as st, settings, Verbosity, unlimited
 from hypothesis.errors import HypothesisException
 from itertools import product, cycle, chain, islice
@@ -147,25 +146,6 @@ if __name__ == '__main__':
     def test_{}(self):
         with self.assertRaises({}):
             {}'''.format(test_name, ex_type.__name__, invocation_code.replace('nan', 'float("""nan""")'))
-
-def db_path(db_name='battle_tested.db'):
-    ''' returns the full path of battle_tested's database '''
-    from os.path import dirname, join, isdir
-    # path of this file
-    this_files_path = dirname(__file__)
-    # path of where dbs are stored
-    db_dir = join(this_files_path, 'db')
-    # makr the db_dir if it doesnt exist
-    if not isdir(db_dir):
-        from os import mkdir, chmod
-        from stat import S_IRUSR, S_IWUSR, S_IXUSR
-        # make the directory
-        mkdir(db_dir)
-        # try to set the permissions correctly
-        # this is in 'attempt' because it might fail on some systems
-        attempt(lambda: chmod(db_dir, (S_IRUSR | S_IWUSR | S_IXUSR)))
-    # return the full path of the db
-    return join(db_dir, db_name)
 
 def getsource(fn):
     ''' basically just inspect.getsource, only this one doesn't crash as much '''
@@ -299,17 +279,17 @@ class easy_street:
 
     @staticmethod
     def garbage():
-        strategies = (
-            easy_street.strings(),
-            easy_street.ints(),
-            easy_street.floats(),
-            easy_street.bools(),
-            easy_street.dicts(),
-            easy_street.sets(),
-            easy_street.lists(),
-            easy_street.tuples()
-        )
         while 1:
+            strategies = (
+                easy_street.strings(),
+                easy_street.ints(),
+                easy_street.floats(),
+                easy_street.bools(),
+                easy_street.dicts(),
+                easy_street.sets(),
+                easy_street.lists(),
+                easy_street.tuples()
+            )
             for strat in gen.chain(product(strategies, repeat=len(strategies))):
                 yield next(strat)
 
@@ -328,14 +308,10 @@ def background_manager(child_queues, q):
     if not hardware.single_core:
         pin_to_cpu(1)
     renice(20)
-    db = GraphDB(db_path('test_inputs.db'))
     q_put = q.put
-    for o in db:
-        q_put(o)
     for cq in cycle(child_queues):
         try:
             item = cq.get_nowait()
-            db[item]
             q_put(item)
         except:
             sleep(0.0001)
@@ -536,7 +512,7 @@ class storage():
         """ use this to add new examples to battle_tested's pre-loaded examples in storage.test_inputs """
         assert type(how_many) == int, 'build_new_examples needs a positive int as the argument'
         assert how_many > 0, 'build_new_examples needs a positive int as the argument'
-        @settings(perform_health_check=False, database_file=None, max_examples=how_many)
+        @settings(max_examples=how_many)
         @given(garbage)
         def garbage_filler(i):
             try:
@@ -544,7 +520,7 @@ class storage():
             except:
                 pass
         try:
-            garbage_filler()    ###MP block to read from a queue instead of try/except pass?
+            garbage_filler()
         except:
             pass
 
@@ -552,14 +528,14 @@ class storage():
     def refresh_test_inputs():
         """ wipe battle_tested test_inputs and cache new examples """
         storage.test_inputs.clear()
-        storage.build_new_examples()
-
-try:
-    storage.test_inputs.append('waffles') # easter egg :)
-    for i in islice(easy_street.garbage(), 32): ### Why append fixed number of entries dynamically?
-        storage.test_inputs.append(i)           ### preallocate, do a copy in one move?
-except Exception as e:
-    pass
+        try:
+            # just fill test inputs with something to start with
+            storage.test_inputs.append('waffles') # easter egg :)
+            for i in islice(easy_street.garbage(), 64):
+                storage.test_inputs.append(i)
+            storage.build_new_examples()
+        except Exception as e:
+            pass
 
 storage.build_new_examples.garbage = garbage
 
@@ -908,7 +884,7 @@ def run_silently(fn):
     """ runs a function silently with no stdout """
     stdout_holder = sys.stdout
     sys.stdout = StringIO()
-    _ = fn()    ### explicit is better than implicit
+    fn()
     sys.stdout = stdout_holder
 
 class ipython_tools(object):
@@ -1312,6 +1288,7 @@ Parameters:
                         yield i
         else: # logic for fuzzing approach
             # first run through the cache
+            storage.refresh_test_inputs()
             for chunk in generators.chunks(chain(storage.test_inputs, reversed(storage.test_inputs)),size=args_needed):
                 for combination in product(chunk, repeat=args_needed):
                     yield combination
@@ -1461,13 +1438,13 @@ Parameters:
         ipython_tools.silence_traceback()
 
         storage.results[fn] = {
-            'successful_input_types':deque(maxlen=500),
+            'successful_input_types':deque(maxlen=512),
             'crash_input_types':set(),
             'iffy_input_types':set(), # types that both succeed and crash the function
             'output_types':set(),
             'exception_types':set(),
             'unique_crashes':dict(),
-            'successful_io':deque()
+            'successful_io':deque(maxlen=512)
         }
 
         def fn_info():
@@ -1475,7 +1452,7 @@ Parameters:
         fn_info.fuzz_time = time()
         fn_info.fuzz_id = len(storage.results.keys())
         # stores examples that succeed and return something other than None
-        fn_info.successful_io = deque()
+        fn_info.successful_io = deque(maxlen=512)
         # stores examples that return None
         fn_info.none_successful_io = deque(maxlen=512)
 
@@ -1483,19 +1460,19 @@ Parameters:
 
         #@settings(perform_health_check=False, database_file=None, deadline=None, max_examples=max_tests, verbosity=(Verbosity.verbose if verbose else Verbosity.normal))
         #@given(strategy)
-        def fuzz(given_args):
-            if fuzz.first_run:
-                fuzz.first_run = False
+        def _fuzz(given_args):
+            if _fuzz.first_run:
+                _fuzz.first_run = False
                 # start the display interval
                 display_stats.start()
                 # start the countdown for timeout
-                fuzz.timestopper.start()
+                _fuzz.timestopper.start()
 
             arg_list = tuple(given_args)
             #if len(arg_list) != fuzz.args_needed:
             #    exit('got {} args? {}'.format(len(arg_list),next(test_variables)))
             # unpack the arguments
-            if not fuzz.has_time:
+            if not _fuzz.has_time:
                 raise FuzzTimeoutError()
             display_stats.count += 1
             try:
@@ -1533,7 +1510,7 @@ Parameters:
                     pass
             except MaxExecutionTimeError:
                 pass
-            except fuzz.allow as ex:
+            except _fuzz.allow as ex:
                 pass
             except Exception as ex:
                 ex_message = ex.args[0] if (
@@ -1576,13 +1553,13 @@ Parameters:
                     ex.args = error_string,
                     raise ex
 
-        fuzz.has_time = True
-        fuzz.first_run = True
-        fuzz.timestopper = Timer(seconds, lambda:setattr(fuzz,'has_time',False))
-        fuzz.exceptions = deque()
-        fuzz.args_needed = args_needed
-        fuzz.allow = allow
-        fuzz.using_native_garbage = using_native_garbage
+        _fuzz.has_time = True
+        _fuzz.first_run = True
+        _fuzz.timestopper = Timer(seconds, lambda:setattr(_fuzz,'has_time',False))
+        _fuzz.exceptions = deque()
+        _fuzz.args_needed = args_needed
+        _fuzz.allow = allow
+        _fuzz.using_native_garbage = using_native_garbage
 
         # run the test
         test_gen = battle_tested.generate_examples(args_needed, None if using_native_garbage else strategy)
@@ -1596,7 +1573,7 @@ Parameters:
                         s = s[:-2]+s[-1]
                         print('trying {}{}'.format(fn.__name__, s))
                     except: pass
-                fuzz(test_args)
+                _fuzz(test_args)
                 max_tests -= 1
                 if max_tests <= 0:
                     break
@@ -1610,7 +1587,7 @@ Parameters:
             display_stats.interval.stop()
             display_stats(False)
             gc_interval.stop()
-            attempt(fuzz.timestopper.cancel)
+            attempt(_fuzz.timestopper.cancel)
 
             if not display_stats.quiet:
                 print('compiling results...')
