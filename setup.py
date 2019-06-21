@@ -1,6 +1,6 @@
 from distutils.core import setup
 
-version = '2017.11.18.1',
+version = '2019.6.21',
 
 setup(
   name = 'battle_tested',
