@@ -3,6 +3,8 @@
 [![Downloads](https://pepy.tech/badge/battle-tested)](https://pepy.tech/project/battle-tested)
 [![Downloads](https://pepy.tech/badge/battle-tested/month)](https://pepy.tech/project/battle-tested)
 [![Downloads](https://pepy.tech/badge/battle-tested/week)](https://pepy.tech/project/battle-tested)
+[![Known Vulnerabilities](https://snyk.io//test/github/CodyKochmann/battle_tested/badge.svg?targetFile=requirements.txt)](https://snyk.io//test/github/CodyKochmann/battle_tested?targetFile=requirements.txt)
+
 
 An automated library that puts functions through hell so in production your code will have already seen worse.
 
@@ -121,4 +123,3 @@ fuzz(sample3, seconds=5, verbose=True)
 | [<img src="https://avatars0.githubusercontent.com/u/6968406" width="75px;"/>](https://github.com/CodyKochmann) | [Cody Kochmann](https://github.com/CodyKochmann) | lead author |
 |:---:|:--- |:--- |
 | [<img src="https://avatars2.githubusercontent.com/u/1007" width="75px;"/>](https://github.com/marcinpohl) | [Marcin Pohl](https://github.com/marcinpohl) | advising for better performance and resource utilization |
-
