@@ -5,8 +5,7 @@
 [![Downloads](https://pepy.tech/badge/battle-tested/week)](https://pepy.tech/project/battle-tested)
 [![Known Vulnerabilities](https://snyk.io//test/github/CodyKochmann/battle_tested/badge.svg?targetFile=requirements.txt)](https://snyk.io//test/github/CodyKochmann/battle_tested?targetFile=requirements.txt)
 
-
-An automated library that puts functions through hell so in production your code will have already seen worse.
+Fully automated python fuzzer built to test if code actually is production ready in seconds.
 
 ## How to install it?
 
