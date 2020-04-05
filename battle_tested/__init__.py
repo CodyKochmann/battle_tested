@@ -2,7 +2,7 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified 2018-03-12
-# @Last Modified time: 2018-03-12 17:34:24
+# @Last Modified time: 2020-04-05 10:58:14
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -36,7 +36,7 @@ from functools import wraps, partial
 from gc import collect as gc
 from generators.inline_tools import attempt
 from graphdb import GraphDB
-from hypothesis import given, strategies as st, settings, Verbosity, unlimited
+from hypothesis import given, strategies as st, settings, Verbosity
 from hypothesis.errors import HypothesisException
 from itertools import product, cycle, chain, islice
 from multiprocessing import Process, Queue, cpu_count as multi_cpu_count
