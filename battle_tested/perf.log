@@ -1,0 +1,33 @@
+(py3) root@kali:~/battle_tested/battle_tested# perf_4.19 stat -d -d -d python runner.py
+
+ Performance counter stats for 'python runner.py':
+
+         51,644.64 msec task-clock                #    1.000 CPUs utilized          
+               167      context-switches          #    3.234 M/sec                  
+                 0      cpu-migrations            #    0.000 K/sec                  
+            12,857      page-faults               #  248.954 M/sec                  
+   159,191,707,729      cycles                    # 3082482.142 GHz                   (28.57%)
+    58,051,076,112      stalled-cycles-frontend   #   36.47% frontend cycles idle     (28.58%)
+   291,772,918,201      instructions              #    1.83  insn per cycle         
+                                                  #    0.20  stalled cycles per insn  (35.73%)
+    61,250,533,172      branches                  # 1186014506.467 M/sec              (35.73%)
+       730,817,492      branch-misses             #    1.19% of all branches          (35.73%)
+    87,597,538,582      L1-dcache-loads           # 1696180361.359 M/sec              (28.55%)
+     1,661,068,101      L1-dcache-load-misses     #    1.90% of all L1-dcache hits    (14.28%)
+       522,877,056      LLC-loads                 # 10124642.863 M/sec                (14.28%)
+   <not supported>      LLC-load-misses                                             
+   <not supported>      L1-icache-loads                                             
+     1,383,405,287      L1-icache-load-misses                                         (21.42%)
+    87,743,680,005      dTLB-loads                # 1699010146.484 M/sec              (21.41%)
+       150,492,477      dTLB-load-misses          #    0.17% of all dTLB cache hits   (14.28%)
+        79,372,534      iTLB-loads                # 1536916.854 M/sec                 (14.29%)
+        18,952,239      iTLB-load-misses          #   23.88% of all iTLB cache hits   (21.43%)
+   <not supported>      L1-dcache-prefetches                                        
+       288,048,905      L1-dcache-prefetch-misses # 5577587.038 M/sec                 (28.57%)
+
+      51.648224607 seconds time elapsed
+
+      51.617780000 seconds user
+       0.028003000 seconds sys
+
+

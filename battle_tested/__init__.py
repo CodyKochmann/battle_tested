@@ -2,7 +2,11 @@
 # @Author: Cody Kochmann
 # @Date:   2017-04-27 12:49:17
 # @Last Modified 2018-03-12
+<<<<<<< HEAD
 # @Last Modified time: 2019-06-21 10:53:10
+=======
+# @Last Modified time: 2020-04-05 11:01:47
+>>>>>>> add-lightness
 
 """
 battle_tested - automated function fuzzing library to quickly test production
@@ -35,7 +39,11 @@ from collections import deque
 from functools import wraps, partial
 from gc import collect as gc
 from generators.inline_tools import attempt
+<<<<<<< HEAD
 from hypothesis import given, strategies as st, settings, Verbosity, unlimited
+=======
+from hypothesis import given, strategies as st, settings, Verbosity
+>>>>>>> add-lightness
 from hypothesis.errors import HypothesisException
 from itertools import product, cycle, chain, islice
 from multiprocessing import Process, Queue, cpu_count as multi_cpu_count
