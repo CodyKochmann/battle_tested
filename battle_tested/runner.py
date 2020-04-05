@@ -6,6 +6,7 @@ from pprint import pprint
 from mutators import mutate
 from ammo import infinite_gc_ammo, standard
 from easy_street import easy_street
+from FuzzResult import FuzzResult
 
 
 def fuzz_generator(input_type):
@@ -111,7 +112,7 @@ def main():
 			print(i, 100_000)
 			if i%10_000 == 0:
 				print('-')
-				show_result(v)
+				print(FuzzResult(v))
 				result = v
 	return result
 
