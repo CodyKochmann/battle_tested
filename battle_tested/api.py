@@ -141,7 +141,7 @@ def fuzz(   fn=None,
             verbosity=1):
 
     if fn is None:
-        return partial(_fuzz_decorator, **{k:v for k,v in locals().items() if k is not 'fn'})
+        return partial(_fuzz_decorator, **{k:v for k,v in locals().items() if k != 'fn'})
     else:
         return _fuzz_function(**locals())
 
@@ -170,43 +170,43 @@ if __name__ == '__main__':
     def my_adder_1(a, b):
         return a + b
     assert callable(my_adder_1)
-    assert my_adder_1.__name__ is 'my_adder_1'
+    assert my_adder_1.__name__ == 'my_adder_1'
 
     @fuzz(input_types=(int, str))
     def my_adder_2(a, b):
         return a + b
     assert callable(my_adder_2)
-    assert my_adder_2.__name__ is 'my_adder_2'
+    assert my_adder_2.__name__ == 'my_adder_2'
 
     @fuzz(input_types=((int, str), (bool, bool)))
     def my_adder_3(a, b):
         return a + b
     assert callable(my_adder_3)
-    assert my_adder_3.__name__ is 'my_adder_3'
+    assert my_adder_3.__name__ == 'my_adder_3'
 
     @fuzz(input_types=(int, (list, float, bool)))
     def my_adder_4(a, b):
         return a + b
     assert callable(my_adder_4)
-    assert my_adder_4.__name__ is 'my_adder_4'
+    assert my_adder_4.__name__ == 'my_adder_4'
 
     @fuzz(exit_on_first_crash=True)
     def my_adder_5(a, b):
         return a + b
     assert callable(my_adder_5)
-    assert my_adder_5.__name__ is 'my_adder_5'
+    assert my_adder_5.__name__ == 'my_adder_5'
 
     @fuzz(allow=(AssertionError,))
     def my_adder_6(a, b):
         return a + b
     assert callable(my_adder_6)
-    assert my_adder_6.__name__ is 'my_adder_6'
+    assert my_adder_6.__name__ == 'my_adder_6'
 
     @fuzz(verbosity=2)
     def my_adder_7(a, b):
         return a + b
     assert callable(my_adder_7)
-    assert my_adder_7.__name__ is 'my_adder_7'
+    assert my_adder_7.__name__ == 'my_adder_7'
 
 
     print('success')
