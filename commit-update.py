@@ -10,16 +10,14 @@ def bash(command, check=True):
 
 def list_tags():
     ''' returns a list of the tags in the repo '''
-    return bash('git tag', False).strip().split('\n')
-
-def next_tag():
-    ''' returns the next tag that will be used '''
+    return bash('git tag -l', False).strip().split('\n')
 
 def latest_tag():
     """ returns the latest tag used """
     out = ''
-    for i in sorted(list_tags()):
-        out = i
+    tags_all_sorted = sorted(list_tags())
+    if tags_all_sorted is not None:
+        out = tags_all_sorted[-1]
     return out
 
 def create_next_tag():
