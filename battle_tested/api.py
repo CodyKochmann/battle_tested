@@ -131,7 +131,7 @@ def _fuzz_function(
 # this is for the "@fuzz()" decorator syntax, to allow users to input settings
 def fuzz(   fn=None,
             *, # force settings to be kv pairs
-            max_tests=1000000000,
+            max_tests=100_000,
             seconds=6,
             input_types=tuple(),
             exit_on_first_crash=False,
@@ -149,11 +149,14 @@ if __name__ == '__main__':
     def my_adder(a, b):
         return a + b
 
+    # uncomment to get right to debugging
+    #result = fuzz(my_adder, verbosity=2)
+
     # test multiple runs
-    result = fuzz(my_adder, verbosity=2)
+    result = fuzz(my_adder)
     print(result)
     assert isinstance(result, FuzzResult)
-
+    exit()
     result = fuzz(my_adder)
     print(result)
     assert isinstance(result, FuzzResult)

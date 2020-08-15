@@ -109,17 +109,20 @@ def run_fuzz(fn,
 	if not input_types:
 		input_types = tuple(product(standard.types, repeat=function_arg_count(fn)))
 	result = None
+	pipe = fuzz_test(fn, input_types)
+	update_interval = int(max_tests/100)
 	if verbosity <= 1:
-		for i, v in zip(range(max_tests), fuzz_test(fn, input_types)):
-			if i == 10_000:
-				if verbosity == 1:
+		for i, v in zip(range(max_tests), pipe):
+			if not i % update_interval:
+				if verbosity >= 1:
 					print(f'{i} / {max_tests}')
 					print(FuzzResult(v))
 				result = v
 	else:
-		for i, v in zip(range(max_tests), fuzz_test(fn, input_types)):
+		for i, v in zip(range(max_tests), pipe):
 			print(i)
-			if i == 10_000:
+			#quick_show_result(v)
+			if not i % update_interval:
 				print(f'{i} / {max_tests}')
 				print(FuzzResult(v))
 				result = v
