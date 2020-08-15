@@ -1,7 +1,10 @@
 from itertools import cycle, chain, product
 from collections import defaultdict, deque
 from functools import partial
+from contextlib import contextmanager
 from pprint import pprint
+from time import time
+import gc
 
 from mutators import mutate
 from ammo import infinite_gc_ammo, standard
@@ -97,6 +100,15 @@ def quick_show_result(result):
 	assert isinstance(result, dict), type(result)
 	pprint({k:{vk:list(vv) for vk, vv in v.items()} for k,v in result.items()})
 
+@contextmanager
+def no_gc():
+	gc.disable()
+	try:
+		yield
+	finally:
+		gc.enable()
+		gc.collect(2)
+
 
 def run_fuzz(fn,
             *, # force settings to be kv pairs
@@ -106,26 +118,34 @@ def run_fuzz(fn,
             exit_on_first_crash=False,
             allow=tuple(),
             verbosity=1):
-	if not input_types:
-		input_types = tuple(product(standard.types, repeat=function_arg_count(fn)))
-	result = None
-	pipe = fuzz_test(fn, input_types)
-	update_interval = int(max_tests/100)
-	if verbosity <= 1:
-		for i, v in zip(range(max_tests), pipe):
-			if not i % update_interval:
-				print(f'{i} / {max_tests}')
-				print(FuzzResult(v))
-				result = v
-	else:
-		for i, v in zip(range(max_tests), pipe):
-			print(i)
-			#quick_show_result(v)
-			if not i % update_interval:
-				print(f'{i} / {max_tests}')
-				print(FuzzResult(v))
-				result = v
-	return result
+	with no_gc():
+		start_time = time()
+		if input_types:
+			raise NotImplemented('custom error type inputs has not been implemented yet')
+			if isinstance(input_types, (tuple, list)) and isinstance(input_types[0], type):
+				input_types = tuple((i,) for i in input_types)
+		else:
+			input_types = tuple(product(standard.types, repeat=function_arg_count(fn)))
+		result = None
+		pipe = fuzz_test(fn, input_types)
+		update_interval = int(max_tests/100)
+		if verbosity <= 1:
+			for i, v in zip(range(max_tests), pipe):
+				if not i % update_interval:
+					print(f'{i} / {max_tests}')
+					print(FuzzResult(v))
+					result = v
+		else:
+			for i, v in zip(range(max_tests), pipe):
+				print(i)
+				#quick_show_result(v)
+				if not i % update_interval:
+					print(f'{i} / {max_tests}')
+					print(FuzzResult(v))
+					result = v
+		duration = time() - start_time
+		print(f'fuzz duration for {fn}: {duration}s or {max_tests/duration} per sec')
+		return result
 
 def main():
 	''' runs the fuzzer components through the basic movements to show how all
