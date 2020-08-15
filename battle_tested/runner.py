@@ -7,6 +7,7 @@ from mutators import mutate
 from ammo import infinite_gc_ammo, standard
 from easy_street import easy_street
 from FuzzResult import FuzzResult
+from function_arg_count import function_arg_count
 
 
 def fuzz_generator(input_type):
@@ -87,17 +88,42 @@ def fuzz_test(fn, input_type_combinations):
 		# decide if its necessary to continue fuzzing.
 		yield result_map
 
-
-def show_result(result):
+def quick_show_result(result):
 	''' converts an optimized result object into something a little cleaner
 		and pprints the simplified version.
 
 		This will become a method of FuzzResult later.
 	''' 
 	assert isinstance(result, dict), type(result)
-	tmp = {k:{vk:list(vv) for vk, vv in v.items()} for k,v in result.items()}
-	pprint(tmp)
+	pprint({k:{vk:list(vv) for vk, vv in v.items()} for k,v in result.items()})
 
+
+def run_fuzz(fn,
+            *, # force settings to be kv pairs
+            max_tests=100_000,
+            seconds=6,  # note: might be solvable with generators.timed_pipeline
+            input_types=tuple(),
+            exit_on_first_crash=False,
+            allow=tuple(),
+            verbosity=1):
+	if not input_types:
+		input_types = tuple(product(standard.types, repeat=function_arg_count(fn)))
+	result = None
+	if verbosity <= 1:
+		for i, v in zip(range(max_tests), fuzz_test(fn, input_types)):
+			if i == 10_000:
+				if verbosity == 1:
+					print(f'{i} / {max_tests}')
+					print(FuzzResult(v))
+				result = v
+	else:
+		for i, v in zip(range(max_tests), fuzz_test(fn, input_types)):
+			print(i)
+			if i == 10_000:
+				print(f'{i} / {max_tests}')
+				print(FuzzResult(v))
+				result = v
+	return result
 
 def main():
 	''' runs the fuzzer components through the basic movements to show how all

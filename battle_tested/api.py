@@ -7,6 +7,8 @@
 from typing import Callable
 from functools import partial
 from function_arg_count import function_arg_count
+from FuzzResult import FuzzResult
+from runner import run_fuzz
 
 # how the previous api worked
 #
@@ -93,11 +95,6 @@ def _verify_fuzz_settings(*, fn=None, max_tests=None, seconds=None, input_types=
         _verify_input_types_fits_function(fn, input_types)
 
 
-# for now, FuzzResult is just a placeholder.
-class FuzzResult(dict):
-    pass
-
-
 # this is the primary usage and supports "fuzz(fn)" syntax
 def _fuzz_decorator(
             fn: Callable,
@@ -110,7 +107,8 @@ def _fuzz_decorator(
             verbosity=1):
     _verify_fuzz_settings(**locals())
 
-    FuzzResult(locals())
+    # placeholder for now. decorators basically queue a fuzz for multiprocessing madness
+    #return QueuedFuzzResult(locals())
 
     return fn
 
@@ -127,7 +125,7 @@ def _fuzz_function(
 
     _verify_fuzz_settings(**locals())
 
-    return FuzzResult(locals())
+    return FuzzResult(run_fuzz(**locals()))
 
 
 # this is for the "@fuzz()" decorator syntax, to allow users to input settings
@@ -152,18 +150,52 @@ if __name__ == '__main__':
         return a + b
 
     # test multiple runs
-    assert isinstance(fuzz(my_adder), FuzzResult)
-    assert isinstance(fuzz(my_adder), FuzzResult)
-    assert isinstance(fuzz(my_adder), FuzzResult)
+    result = fuzz(my_adder, verbosity=2)
+    print(result)
+    assert isinstance(result, FuzzResult)
+
+    result = fuzz(my_adder)
+    print(result)
+    assert isinstance(result, FuzzResult)
+
+    result = fuzz(my_adder)
+    print(result)
+    assert isinstance(result, FuzzResult)
+
 
     # test various settings
-    assert isinstance(fuzz(my_adder, seconds=3), FuzzResult)
-    assert isinstance(fuzz(my_adder, input_types=(int, str)), FuzzResult)
-    assert isinstance(fuzz(my_adder, input_types=((int, str), (bool, bool))), FuzzResult)
-    assert isinstance(fuzz(my_adder, input_types=(int, (list, float, bool))), FuzzResult)
-    assert isinstance(fuzz(my_adder, exit_on_first_crash=True), FuzzResult)
-    assert isinstance(fuzz(my_adder, allow=(AssertionError,)), FuzzResult)
-    assert isinstance(fuzz(my_adder, verbosity=2), FuzzResult)
+    # test seconds
+    # not implemented yet
+    #result = fuzz(my_adder, seconds=3)
+    #print(result)
+    #assert isinstance(result, FuzzResult)
+
+    result = fuzz(my_adder, input_types=(int, str))
+    print(result)
+    assert isinstance(result, FuzzResult)
+
+    result = fuzz(my_adder, input_types=((int, str), (bool, bool)))
+    print(result)
+    assert isinstance(result, FuzzResult)
+
+    result = fuzz(my_adder, input_types=(int, (list, float, bool)))
+    print(result)
+    assert isinstance(result, FuzzResult)
+
+    # not implemented yet
+    #result = fuzz(my_adder, exit_on_first_crash=True)
+    #print(result)
+    #assert isinstance(result, FuzzResult)
+
+    #result = fuzz(my_adder, allow=(AssertionError,))
+    #print(result)
+    #assert isinstance(result, FuzzResult)
+
+    # only uncomment if you wanna REALLY see some logs
+    #result = fuzz(my_adder, verbosity=2)
+    #print(result)
+    #assert isinstance(result, FuzzResult)
+
 
     # test decorator syntax
     @fuzz(seconds=3)
