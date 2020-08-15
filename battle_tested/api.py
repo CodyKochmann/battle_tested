@@ -156,7 +156,7 @@ if __name__ == '__main__':
     result = fuzz(my_adder)
     print(result)
     assert isinstance(result, FuzzResult)
-    exit()
+
     result = fuzz(my_adder)
     print(result)
     assert isinstance(result, FuzzResult)
