@@ -114,9 +114,8 @@ def run_fuzz(fn,
 	if verbosity <= 1:
 		for i, v in zip(range(max_tests), pipe):
 			if not i % update_interval:
-				if verbosity >= 1:
-					print(f'{i} / {max_tests}')
-					print(FuzzResult(v))
+				print(f'{i} / {max_tests}')
+				print(FuzzResult(v))
 				result = v
 	else:
 		for i, v in zip(range(max_tests), pipe):
