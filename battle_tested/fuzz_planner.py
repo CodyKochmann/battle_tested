@@ -34,7 +34,7 @@ class Test_input_type_combos(TestCase):
                 (float, bool, bool),
                 (float, bool, str),
                 (int, bool, bool),
-                (int, bool, str),
+                (int, bool, str)
             })
 
     def test_two_nested_three_args_different_sizes(self):
@@ -46,7 +46,7 @@ class Test_input_type_combos(TestCase):
                 (float, bool, str),
                 (int, bool, bool),
                 (int, bool, str),
-                (int, bool, str),
+                (int, bool, str)
             })
 
     def test_three_nested_three_args_different_sizes(self):
@@ -65,7 +65,7 @@ class Test_input_type_combos(TestCase):
                         (int, bool, str),
                         (int, int, bool),
                         (int, int, str),
-                        (int, int, str),
+                        (int, int, str)
                     })
 
     def test_no_nested_single_combos(self):
@@ -90,7 +90,7 @@ class Test_input_type_combos(TestCase):
             set(input_type_combos((
                 int,
                 float,
-                str,
+                str
             ), 2)), {(int, int), (int, float), (int, str), (float, int),
                      (float, float), (float, str), (str, int), (str, float),
                      (str, str)})
