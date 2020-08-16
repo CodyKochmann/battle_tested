@@ -52,6 +52,12 @@ beta-test-runner-python:
 beta-test-runner-debian:
 	docker run -it --rm -v $(PWD):/outside debian sh -c 'cp -rv /outside /inside && apt update && apt install -y python3 python3-venv && python3 -m venv py3 && cd inside && /py3/bin/pip install . && cd battle_tested && /py3/bin/python runner.py'
 
+beta-test-fuzz_planner-python:
+	docker run -it --rm -v $(PWD):/outside python sh -c	'cp -rv /outside /inside && cd inside && pip install . && python battle_tested/fuzz_planner.py'
+
+beta-test-fuzz_planner-debian:
+	docker run -it --rm -v $(PWD):/outside debian sh -c 'cp -rv /outside /inside && apt update && apt install -y python3 python3-venv && python3 -m venv py3 && cd inside && /py3/bin/pip install . && cd battle_tested && /py3/bin/python fuzz_planner.py'
+
 docker-test-all: docker-test-python docker-test-alpine docker-test-debian
 
 beta-test-all: beta-test-runner-python beta-test-api-python
