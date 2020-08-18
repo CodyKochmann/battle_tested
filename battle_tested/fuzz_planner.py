@@ -22,7 +22,7 @@ class IllegalTypeComboSettings(ValueError):
     '''raised if illegal combination of type_combos are entered with a give arg_count'''
 
 
-def type_combos(input_types, arg_count):
+def input_type_combos(input_types, arg_count):
     ''' expands all combinations generated from the user's given settings '''
     assert isinstance(input_types, (list, tuple, set)), input_types
     assert isinstance(arg_count, int), arg_count
