@@ -1,13 +1,49 @@
+from itertools import product
 from unittest import TestCase, main
 
 
-def input_type_combos(user_settings, arg_count):
-    assert isinstance(user_settings, (list, tuple, set)), user_settings
+def has_nested_combos(input_types):
+    ''' returns True if any object in the type collection is not a type '''
+    assert isinstance(input_types, (list, tuple, set)), input_types
+    return any(not isinstance(i, type) for i in input_types)
 
-    user_settings = user_settings if isinstance(
-        user_settings, tuple) else tuple(user_settings)
 
-    raise NotImplemented("havent gotten to this one yet")
+def flatten_types(input_types):
+    ''' returns every type from a nested structure '''
+    assert isinstance(input_types, (list, tuple, set, type)), input_types
+    if isinstance(input_types, type):
+        yield input_types
+    else:
+        for i in input_types:
+            yield from flatten_types(i)
+
+
+class IllegalTypeComboSettings(ValueError):
+    '''raised if illegal combination of type_combos are entered with a give arg_count'''
+
+
+def type_combos(input_types, arg_count):
+    ''' expands all combinations generated from the user's given settings '''
+    assert isinstance(input_types, (list, tuple, set)), input_types
+    assert isinstance(arg_count, int), arg_count
+    assert arg_count > 0, arg_count
+    if arg_count == 1:
+        # flatten out the types and yield the unique product
+        yield from product(set(flatten_types(input_types)))
+    elif has_nested_combos(input_types):
+        if len(input_types) == arg_count:
+            # turn every input type into a tuple
+            pipe = (
+                (i,) if isinstance(i, type) else i
+                for i in input_types
+            )
+            # yield out the product of those tuples
+            yield from product(*pipe)
+        else:
+            raise IllegalTypeComboSettings(f'{locals()}')
+    else:
+        # yield out the product of every type for each arg
+        yield from product(input_types, repeat=arg_count)
 
 
 class Test_input_type_combos(TestCase):
@@ -69,11 +105,11 @@ class Test_input_type_combos(TestCase):
                     })
 
     def test_no_nested_single_combos(self):
-        with self.assertRaises(UsageError):
+        with self.assertRaises(ValueError):
             set(input_type_combos((int, float, (str, bool)), 1))
 
     def test_not_enough_args_for_types(self):
-        with self.assertRaises(UsageError):
+        with self.assertRaises(ValueError):
             set(
                 input_type_combos(
                     (
