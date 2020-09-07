@@ -11,5 +11,6 @@ battle_tested/api.py
 battle_tested/easy_street.py
 battle_tested/function_arg_count.py
 battle_tested/fuzz_planner.py
+battle_tested/input_type_combos.py
 battle_tested/mutators.py
 battle_tested/runner.py
