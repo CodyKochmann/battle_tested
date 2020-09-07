@@ -1,0 +1,12 @@
+Metadata-Version: 1.1
+Name: battle-tested
+Version: 2020.9.7.3
+Summary: automated function and api fuzzer for easy testing of production code
+Home-page: https://github.com/CodyKochmann/battle_tested
+Author: Cody Kochmann
+Author-email: kochmanncody@gmail.com
+License: UNKNOWN
+Download-URL: https://github.com/CodyKochmann/battle_tested/tarball/2020.9.7.3
+Description: UNKNOWN
+Keywords: battle_tested,test,hypothesis,fuzzing,fuzz,production,unittest,api,fuzzer,stress
+Platform: UNKNOWN
