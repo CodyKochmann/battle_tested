@@ -3,5 +3,13 @@ README
 setup.cfg
 setup.py
 battle_tested/CallTree.py
+battle_tested/FuzzResult.py
 battle_tested/__init__.py
 battle_tested/__main__.py
+battle_tested/ammo.py
+battle_tested/api.py
+battle_tested/easy_street.py
+battle_tested/function_arg_count.py
+battle_tested/fuzz_planner.py
+battle_tested/mutators.py
+battle_tested/runner.py
