@@ -11,6 +11,7 @@ from ammo import infinite_gc_ammo, standard
 from easy_street import easy_street
 from FuzzResult import FuzzResult
 from function_arg_count import function_arg_count
+from input_type_combos import input_type_combos
 
 
 def fuzz_generator(input_type):
@@ -120,12 +121,12 @@ def run_fuzz(fn,
             verbosity=1):
 	with no_gc():
 		start_time = time()
-		if input_types:
-			raise NotImplemented('custom error type inputs has not been implemented yet')
-			if isinstance(input_types, (tuple, list)) and isinstance(input_types[0], type):
-				input_types = tuple((i,) for i in input_types)
-		else:
-			input_types = tuple(product(standard.types, repeat=function_arg_count(fn)))
+		input_types = tuple(
+			input_type_combos(
+				input_types if input_types else standard.types,
+				function_arg_count(fn)
+			)
+		)
 		result = None
 		pipe = fuzz_test(fn, input_types)
 		update_interval = int(max_tests/100)
