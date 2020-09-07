@@ -6,9 +6,10 @@
 
 from typing import Callable
 from functools import partial
-from function_arg_count import function_arg_count
-from FuzzResult import FuzzResult
-from runner import run_fuzz
+
+from battle_tested.function_arg_count import function_arg_count
+from battle_tested.FuzzResult import FuzzResult
+from battle_tested.runner import run_fuzz
 
 # how the previous api worked
 #

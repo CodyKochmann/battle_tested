@@ -1,7 +1,7 @@
 from itertools import product
 from unittest import TestCase, main
 
-from ammo import standard
+from battle_tested.ammo import standard
 
 
 ''' This code converts user provided type combos to combos that can be split
