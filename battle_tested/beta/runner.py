@@ -6,12 +6,12 @@ from pprint import pprint
 from time import time
 import gc
 
-from battle_tested.mutators import mutate
-from battle_tested.ammo import infinite_gc_ammo, standard
-from battle_tested.easy_street import easy_street
-from battle_tested.FuzzResult import FuzzResult
-from battle_tested.function_arg_count import function_arg_count
-from battle_tested.input_type_combos import input_type_combos
+from battle_tested.beta.mutators import mutate
+from battle_tested.beta.ammo import infinite_gc_ammo, standard
+from battle_tested.beta.easy_street import easy_street
+from battle_tested.beta.FuzzResult import FuzzResult
+from battle_tested.beta.function_arg_count import function_arg_count
+from battle_tested.beta.input_type_combos import input_type_combos
 
 
 def fuzz_generator(input_type):
