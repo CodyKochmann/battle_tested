@@ -54,9 +54,7 @@ class FuzzResultDB(sqlite3.Connection):
 				input_types TEXT NOT NULL,
 				input_args TEXT NOT NULL,
 				output_type TEXT NOT NULL,
-				output TEXT NOT NULL,
-				CHECK (input_types LIKE '(%)'),
-				CHECK (input_args LIKE '(%)')
+				output TEXT NOT NULL
 			);
 		''',
 		'''
@@ -65,9 +63,7 @@ class FuzzResultDB(sqlite3.Connection):
 				input_types TEXT NOT NULL,
 				input_args TEXT NOT NULL,
 				exception_type TEXT NOT NULL,
-				exception TEXT NOT NULL,
-				CHECK (input_types LIKE '(%)'),
-				CHECK (input_args LIKE '(%)')
+				exception TEXT NOT NULL
 			);
 		'''
 	]
