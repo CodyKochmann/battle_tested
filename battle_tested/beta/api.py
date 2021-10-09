@@ -126,7 +126,9 @@ def _fuzz_function(
 
     _verify_fuzz_settings(**locals())
 
-    return FuzzResult(run_fuzz(**locals()))
+    output = FuzzResult(run_fuzz(**locals()))
+    output.fuzz_target = fn
+    return output
 
 
 # this is for the "@fuzz()" decorator syntax, to allow users to input settings
