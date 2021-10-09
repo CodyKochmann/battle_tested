@@ -5,7 +5,7 @@
 # @Last Modified time: 2020-04-05 12:23:59
 
 from typing import Set, Tuple, Dict
-import sqlite3, inspect, logging
+import sqlite3, inspect, logging, unittest
 
 '''
 FuzzResult structure
@@ -109,26 +109,36 @@ class FuzzResultDB(sqlite3.Connection):
 						target_function_name,
 						target_function_repr,
 						target_function_source
-					) VALUES (?, ?, ?);
+					) VALUES (?, ?, ?, ?);
 				''',
 				(
-					self.fuzz_target.__module__ if hasattr(self.fuzz_target, '__module__') else None,
-					self.fuzz_target.__name__ if hasattr(self.fuzz_target, '__name__') else None,
-					repr(self.fuzz_target),
-					attempt_getsource(self.fuzz_target)
+					self._fuzz_target.__module__ if hasattr(self._fuzz_target, '__module__') else None,
+					self._fuzz_target.__name__ if hasattr(self._fuzz_target, '__name__') else None,
+					repr(self._fuzz_target),
+					attempt_getsource(self._fuzz_target)
 				)
 			).lastrowid
 			cursor.close()
 		return self._test_id
 
+	'''
+	for tr in test_runners:
+		input_types, success, args, output = next(tr)
+		if success:
+			# store the input, output pair in the successful runs
+			result_map[input_types][success].append((args, output))
+		else:
+			# store the arguments in the deque for that specific exception
+			result_map[input_types][success][(type(output), output.args)].append(args)
+	'''
+
 	def save_results(self, fuzz_target, fuzz_result):
 		cursor = self.cursor()
 		# iterate through the FuzzResult to store its tests to the db
-		for type_combo, result in fuzz_result.values():
-			assert isinstance(type_combo, tuple), type_combo
-			assert isinstance(result, dict), result
+		for type_combo, result in fuzz_result.items():
+			unittest.TestCase.assertEquals(unittest.TestCase(), [type(type_combo), type(result)], [tuple, dict])
 			assert len(result) > 0, result
-			assert set(result.keys()).issubet({True, False}), result.keys()
+			assert len(result) <= 2, result
 			if True in result and len(result[True]) > 0: # successful tests need to be stored
 				list(cursor.executemany(
 					'''
@@ -142,7 +152,7 @@ class FuzzResultDB(sqlite3.Connection):
 					''',
 					(
 						(
-							test_id,
+							self.test_id,
 							repr(type_combo),
 							repr(input_args),
 							repr(type(output)),
@@ -159,16 +169,16 @@ class FuzzResultDB(sqlite3.Connection):
 							input_types,
 							input_args,
 							exception_type,
-							output
+							exception
 						) VALUES (?, ?, ?, ?, ?);
-					''',(type(output), output.args)
+					''',
 					(
 						(
-							test_id,
+							self.test_id,
 							repr(type_combo),
 							repr(input_args),
 							repr(output[0]),
-							repr(output[1])
+							repr(output[1] if len(output)>1 else None)
 						)
 						for input_args, output in result[False]
 					)
