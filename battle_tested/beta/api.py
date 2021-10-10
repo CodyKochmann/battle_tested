@@ -150,6 +150,11 @@ if __name__ == '__main__':
     def my_adder(a, b):
         return a + b
 
+    # test a short run to get most of the flow tested quickly
+    result = fuzz(my_adder, max_tests=4096)
+    print(result)
+    assert isinstance(result, FuzzResultDB)
+
     # uncomment to get right to debugging
     #result = fuzz(my_adder, verbosity=2)
 
