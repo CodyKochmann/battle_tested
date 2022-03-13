@@ -49,21 +49,22 @@ class FuzzResultDB(sqlite3.Connection):
 			);
 		''',
 		'''
-			CREATE TABLE IF NOT EXISTS successful_tests (
+			CREATE TABLE IF NOT EXISTS test_ingest (
 				test_id INTEGER REFERENCES fuzz_tests(id),
+				successful BOOLEAN NOT NULL,
 				input_types TEXT NOT NULL,
 				input_args TEXT NOT NULL,
-				output_type TEXT NOT NULL,
-				output TEXT NOT NULL
-			);
-		''',
-		'''
-			CREATE TABLE IF NOT EXISTS failed_tests (
-				test_id INTEGER REFERENCES fuzz_tests(id),
-				input_types TEXT NOT NULL,
-				input_args TEXT NOT NULL,
-				exception_type TEXT NOT NULL,
-				exception TEXT NOT NULL
+				output_type TEXT,
+				output TEXT,
+				exception_type TEXT,
+				exception TEXT,
+				CHECK (
+					(
+						output_type != NULL AND output != NULL
+					) OR (
+						exception_type != NULL AND exception != NULL
+					)
+				)
 			);
 		'''
 	]
@@ -117,17 +118,6 @@ class FuzzResultDB(sqlite3.Connection):
 			cursor.close()
 		return self._test_id
 
-	'''
-	for tr in test_runners:
-		input_types, success, args, output = next(tr)
-		if success:
-			# store the input, output pair in the successful runs
-			result_map[input_types][success].append((args, output))
-		else:
-			# store the arguments in the deque for that specific exception
-			result_map[input_types][success][(type(output), output.args)].append(args)
-	'''
-
 	def save_results(self, fuzz_target, fuzz_result):
 		cursor = self.cursor()
 		# iterate through the FuzzResult to store its tests to the db
@@ -138,17 +128,19 @@ class FuzzResultDB(sqlite3.Connection):
 			if True in result and len(result[True]) > 0: # successful tests need to be stored
 				list(cursor.executemany(
 					'''
-						INSERT INTO successful_tests (
+						INSERT INTO test_ingest (
 							test_id,
+							successful,
 							input_types,
 							input_args,
 							output_type,
 							output
-						) VALUES (?, ?, ?, ?, ?);
+						) VALUES (?, ?, ?, ?, ?, ?);
 					''',
 					(
 						(
 							self.test_id,
+							True,
 							repr(type_combo),
 							repr(input_args),
 							repr(type(output)),
@@ -160,17 +152,19 @@ class FuzzResultDB(sqlite3.Connection):
 			if False in result and len(result[False]) > 0: # failed tests need to be stored
 				list(cursor.executemany(
 					'''
-						INSERT INTO failed_tests (
+						INSERT INTO test_ingest (
 							test_id,
+							successful,
 							input_types,
 							input_args,
 							exception_type,
 							exception
-						) VALUES (?, ?, ?, ?, ?);
+						) VALUES (?, ?, ?, ?, ?, ?);
 					''',
 					(
 						(
 							self.test_id,
+							False,
 							repr(type_combo),
 							repr(input_args),
 							repr(output[0]),
