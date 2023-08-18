@@ -293,17 +293,54 @@ class easy_street:
             for strat in gen.chain(product(strategies, repeat=len(strategies))):
                 yield next(strat)
 
+class StrategyNotPopulatingBufferException(Exception):
+    ''' raised if a hypothesis strategy is not populating a buffer at all '''
+
+def strategy_stream(strat, buffer_limit=64):
+    ''' emulates what strategy.example() use to do but now with a buffered generator '''
+
+    # define a buffer to work with
+    buffer = deque(maxlen=buffer_limit)
+
+
+    # loop forever, clearing the buffer every time
+    while buffer.clear() == None:
+
+        # populate the buffer with a hypothesis test that runs enough to fill the buffer
+        @settings(database=None, max_examples=buffer_limit)
+        @given(strat)
+        def buffer_append(data):
+            nonlocal buffer
+            return buffer.append(data)
+
+        # run the hypothesis test
+        buffer_append()
+        
+        if len(buffer) == 0:
+            raise StrategyNotPopulatingBufferException(f'buffer was found empty, it appears strategy[{strat}] is not producing anything')
+        
+        # empty the buffer out
+        yield from buffer
+
+
 def background_strategy(strats, q):
     target_core = q.get()
     renice(20) # maximize niceness
     if not hardware.single_core:
         pin_to_cpu(target_core)
     q_put = q.put
-    for strat in cycle(strats):
+    
+    # create a stream that cycles through the provided strategies 
+    stream = cycle(strategy_stream(s) for s in strats)
+
+    # rotate through the strategies appending their outputs into the queue
+    for strat in stream:
         try:
-            q_put(strat.example())
+            q_put(next(strat))
         except:
             pass
+
+
 def background_manager(child_queues, q):
     if not hardware.single_core:
         pin_to_cpu(1)
@@ -315,6 +352,7 @@ def background_manager(child_queues, q):
             q_put(item)
         except:
             sleep(0.0001)
+
 
 def multiprocess_garbage():
     basics = (
@@ -437,15 +475,15 @@ class max_execution_time:
 def hashable_strategy(s):   ###MP predicates are nice to indicate with <is_condition> or ? if you're weird enough
     """ Predicate stating a hash-able hypothesis strategy """
     assert hasattr(s, 'example'), 'hashable_strategy needs a strategy argument'   ###MP strategies are marked up with attributes not types/base class?
-    try:
-        for i in range(10):
-            sample = s.example()
+    stream = strategy_stream(s)
+    for i in range(32):
+        sample = next(stream)
+        try:
             hash(sample)
             assert type(sample) != dict
-    except:
-        return False
-    else:
-        return True
+        except:
+            return False
+    return True
 
 def replace_strategy_repr(strat, new_repr):
     """ replaces a strategy's repr and str functions with a custom one """
@@ -587,19 +625,24 @@ class PrettyTuple(tuple):
             try:
                 table = PrettyTable(None)
                 try:
+                    # attempt to sort the tuple
                     tup = tuple(sorted(self, key=repr))
                 except:
                     tup = self
+                # build up the PrettyTable
                 for i in tup:
+                    # logic for nested tuples
                     if isinstance(i, tuple):
+                        # replace the <class 'int'> format for types with just the name of the type
                         t = tuple(x.__name__ if isinstance(x,type) and hasattr(x,'__name__') else repr(x) for x in i)
                         table.add_row(t)
                     else:
+                        # replace the <class 'int'> format for types with just the name of the type
                         if isinstance(i, type):
                             if hasattr(i, '__name__'):
-                                i=i.__name__
+                                i = i.__name__
                             else:
-                                i=repr(i)
+                                i = repr(i)
                         table.add_row((i,))
                 #table.align='l'
                 return '\n'.join(table.get_string().splitlines()[2:])
@@ -1171,7 +1214,7 @@ Parameters:
                 else:
                     ii = i
                 if i == 'successful_io':
-                    table.add_row((ii, repr(getattr(self,i))[7:-2]))
+                    table.add_row((ii, repr(list(getattr(self,i)))))
                 else:
                     table.add_row((ii, getattr(self,i)))
             table.align='l'
@@ -1276,16 +1319,15 @@ Parameters:
                 assert len(strategy) == args_needed, 'invalid number of strategies, needed {} got {}'.format(args_needed, len(strategy))
                 print('using {} custom strategies - {}'.format(len(strategy),strategy))
                 strategy = st.builds(lambda *x: list(x), *strategy)
-                ex = strategy.example
-                for _ in gen.loop():
-                    yield ex()
+                yield from strategy_stream(strategy)
             else:
                 # generate lists containing output only from the given strategy
-                ex = strategy.example
+                stream = strategy_stream(strategy)
                 for _ in gen.loop():
-                    out = [ex() for i in range(args_needed)]
-                    for i in product(out, repeat=len(out)):
-                        yield i
+                    # build a list of args to test next
+                    out = [stream_data for _, stream_data in zip(range(args_needed), stream)]
+                    # yield all combinations of that list
+                    yield from product(out, repeat=len(out))
         else: # logic for fuzzing approach
             # first run through the cache
             storage.refresh_test_inputs()
@@ -1753,8 +1795,24 @@ def time_all_versions_of(fn):
 
 def run_tests():
     ''' this is where all of the primary functionality of battle_tested is tested '''
-    # test instance methods
 
+    print('''
+WARNING | This test exercises ALL functions of the fuzzer and WILL take a while.
+        | Let it churn to see if its fully operational. This includes testing
+        | on all available cpu cores and the full result rendering so just let
+        | it scroll.
+        |
+        | If this battle test succeeds, you are running on all cylinders!!!
+''')
+    
+    sleep(20)
+    
+    print('''
+Initiating core battle test...
+''')
+    sleep(3)
+
+    # test instance methods
     class TestClass(tuple):
         def testmethod(self,a,b,c,d,e):
             return a,b,c,d
@@ -1937,20 +1995,23 @@ def run_tests():
             print('found one')
             crash_examples[e.args[0]]=(key,value)
 
-    for f in storage.results.keys():
+
+    for tested_function in storage.results.keys():
         s = '\n'
         try:
-            s+=f.__module__
-            s+=' '
-            s+=f.__name__
-            s+=' '
-            s+=str([i for i in dir(f) if not i.startswith('_')])
+            s+=tested_function.__module__
+            s+=' ---> '
+            s+=tested_function.__name__
+            s+=' ---> '
+            s+=str([i for i in dir(storage.results[tested_function]) if not i.startswith('_')])
         except:
             pass
         finally:
             print(s)
 
-    print('battle_tested test complete...')
+    print('''
+SUCCESS | Core battle test complete. Go forth and fuzz the world!!!
+''')
 
 
 if __name__ == '__main__':
