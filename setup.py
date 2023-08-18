@@ -2,7 +2,7 @@ from distutils.core import setup
 from setuptools import find_packages
 
 
-version = '2020.9.7.3'
+version = '2023.8.18'
 package_name = 'battle_tested'
 packages = find_packages()
 
