@@ -57,12 +57,12 @@ class FuzzResultDB(sqlite3.Connection):
 				output_type TEXT,
 				output TEXT,
 				exception_type TEXT,
-				exception TEXT,
+				exception_message TEXT,
 				CHECK (
 					(
 						output_type != NULL AND output != NULL
 					) OR (
-						exception_type != NULL AND exception != NULL
+						exception_type != NULL AND exception_message != NULL
 					)
 				)
 			);
@@ -120,6 +120,7 @@ class FuzzResultDB(sqlite3.Connection):
 
 	def save_results(self, fuzz_target, fuzz_result):
 		cursor = self.cursor()
+		cursor.execute('begin')
 		# iterate through the FuzzResult to store its tests to the db
 		for type_combo, result in fuzz_result.items():
 			unittest.TestCase.assertEquals(unittest.TestCase(), [type(type_combo), type(result)], [tuple, dict])
@@ -143,37 +144,47 @@ class FuzzResultDB(sqlite3.Connection):
 							True,
 							repr(type_combo),
 							repr(input_args),
-							repr(type(output)),
+							repr(type(output)), 
 							repr(output)
 						)
 						for input_args, output in result[True]
 					)
 				))
 			if False in result and len(result[False]) > 0: # failed tests need to be stored
-				list(cursor.executemany(
-					'''
-						INSERT INTO test_ingest (
-							test_id,
-							successful,
-							input_types,
-							input_args,
-							exception_type,
-							exception
-						) VALUES (?, ?, ?, ?, ?, ?);
-					''',
-					(
+				for exception, exception_message in result[False]:
+					list(cursor.executemany(
+						'''
+							INSERT INTO test_ingest (
+								test_id,
+								successful,
+								input_types,
+								input_args,
+								exception_type,
+								exception_message
+							) VALUES (?, ?, ?, ?, ?, ?);
+						''',
 						(
-							self.test_id,
-							False,
-							repr(type_combo),
-							repr(input_args),
-							repr(output[0]),
-							repr(output[1] if len(output)>1 else None)
+							(
+								self.test_id,
+								False,
+								repr(type_combo),
+								repr(input_args),  # (type(output), output.args) or (ex_type, ex_message)
+								repr(exception),
+								exception_message[0] if isinstance(exception_message, tuple) and len(exception_message) == 1 and isinstance(exception_message[0], str) and len(exception_message[0].strip()) > 0 else repr(exception_message)
+							)
+							for input_args in result[False][(exception, exception_message)]
 						)
-						for input_args, output in result[False]
-					)
-				))
+					))					
+		cursor.execute('commit')
 		cursor.close()
+
+	def save_to_file(self, file_path):
+		''' this function saves the FuzzResultDB to a file on the filesystem '''
+		assert isinstance(file_path, str), file_path
+		cursor = self.cursor()
+		cursor.execute("vacuum main into ?", (file_path,))
+		cursor.close()
+
 
 class FuzzResult(dict):
 	''' acts as a user friendly data structure to explore fuzz results '''
