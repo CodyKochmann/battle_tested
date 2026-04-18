@@ -15,26 +15,71 @@ jobs:
   # This workflow contains a single job called "build"
   build:
     # The type of runner that the job will run on
-    runs-on: python-latest
+    runs-on: python:latest
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
     # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
     - uses: actions/checkout@v2
 
-    # Runs a single command using the runners shell
-    - name: Run a one-line script
-      run: echo Hello, world!
-
-    # Runs a set of commands using the runners shell
-    - name: Run a multi-line script
+    - name: env-check
       run: |
-        echo Add other actions to build,
-        echo test, and deploy your project.
-        pip install -U pip
-        pip install -r requirements.txt
-        cd battle_tested
+        printenv | sort
+        find . -type f 2>/dev/null
+
+    - name: test-install-and-benchmark
+      run: |
+        set -euxo pipefail
+        ls -lthar
+        echo asserting battle_tested directory exists...
+        test -e battle_tested/
+        echo updating packages and ensuring pip is available...
+        apt update
+        apt install -y python3-pip
+        echo entering battle_tested directory...
+        pushd battle_tested
+        echo testing installer...
+        python3 -m pip install --user --break-system-packages .
+        echo installer succeeded
+        popd
+        echo testing cli use...
+        python3 -m battle_tested --help
+        echo benchmarking installed versions...
+        python3 -m battle_tested --benchmark
+
+    - name: test-requirements-file
+      run: |
+        set -euxo pipefail
+        ls -lthar
+        echo asserting battle_tested directory exists...
+        test -e battle_tested/
+        echo updating packages and ensuring pip is available...
+        apt update
+        apt install -y python3-pip
+        echo entering battle_tested directory...
+        pushd battle_tested
+        python3 -m pip install --user --break-system-packages -r requirements.txt
+        echo requirements.txt install succeeded
+        popd
+
+    - name: test-beta
+      run: |
+        set -euxo pipefail
+        ls -lthar
+        echo asserting battle_tested directory exists...
+        test -e battle_tested/
+        echo updating packages and ensuring pip is available...
+        apt update
+        apt install -y python3-pip
+        echo entering battle_tested directory...
+        pushd battle_tested
+        echo ensuring battle_tested is installed...
+        python3 -m pip install --user --break-system-packages -r .
+        ls -lthar
+        test -e beta/
+        pushd beta
+        ls -lthar
         echo 'running api.py...'
-        python api.py
+        python3 api.py
         echo 'running runner.py...'
-        python runner.py
+        python3 runner.py
