@@ -1,12 +1,39 @@
-Metadata-Version: 1.1
-Name: battle-tested
-Version: 2020.9.7.3
+Metadata-Version: 2.4
+Name: battle_tested
+Version: 2026.4.18
 Summary: automated function and api fuzzer for easy testing of production code
 Home-page: https://github.com/CodyKochmann/battle_tested
 Author: Cody Kochmann
 Author-email: kochmanncody@gmail.com
-License: UNKNOWN
-Download-URL: https://github.com/CodyKochmann/battle_tested/tarball/2020.9.7.3
-Description: UNKNOWN
+Project-URL: Source, https://github.com/CodyKochmann/battle_tested
 Keywords: battle_tested,test,hypothesis,fuzzing,fuzz,production,unittest,api,fuzzer,stress
-Platform: UNKNOWN
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Software Development :: Testing
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE.txt
+Requires-Dist: hypothesis
+Requires-Dist: stricttuple
+Requires-Dist: prettytable
+Requires-Dist: generators
+Requires-Dist: strict_functions
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license-file
+Dynamic: project-url
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary

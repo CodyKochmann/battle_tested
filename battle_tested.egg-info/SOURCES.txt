@@ -1,3 +1,4 @@
+LICENSE.txt
 README
 setup.cfg
 setup.py

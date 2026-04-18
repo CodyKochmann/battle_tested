@@ -5,7 +5,10 @@ RUN pip install -U pip setuptools wheel
 COPY ./requirements.txt /requirements.txt
 RUN pip install -r /requirements.txt
 COPY ./battle_tested /battle_tested
-WORKDIR /battle_tested
+
+WORKDIR /battle_tested/beta
 
 RUN echo 'running api.py...' && python api.py
 RUN echo 'running runner.py...' && python runner.py
+
+WORKDIR /battle_tested
